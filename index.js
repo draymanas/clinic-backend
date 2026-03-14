@@ -29,7 +29,7 @@ const upload = multer({ storage: storage });
 
 // إعدادات الاتصال بـ PostgreSQL (تمت إزالة التكرار)
 const pool = new Pool({
-  connectionString: "postgresql://postgres:Aioota@2026@db.jvaiadgohuvgzgmwqnom.supabase.co:5432/postgres",
+  connectionString: "postgresql://postgres:Aioota2026as@db.jvaiadgohuvgzgmwqnom.supabase.co:5432/postgres",
   ssl: {
     rejectUnauthorized: false
   }
