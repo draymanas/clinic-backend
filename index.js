@@ -136,3 +136,5 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`🚀 السيرفر يعمل بنسخة مصلحة بالكامل على بورت ${PORT}`);
 });
+
+// Update: final connection fix 2026
