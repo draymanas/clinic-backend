@@ -47,60 +47,34 @@ app.get('/doctors', async (req, res) => {
         res.status(500).json({ error: "فشل جلب البيانات" });
     }
 });
-app.post('/register-doctor', upload.single('image'), async (req, res) => {
+app.post('/register-doctor', async (req, res) => {
     try {
-        console.log("📥 BODY:", req.body);
-        console.log("📸 FILE:", req.file);
+        console.log("📥 بيانات واصلة للسيرفر:", req.body);
 
+        // تأمين بسيط
         if (!req.body || Object.keys(req.body).length === 0) {
-            return res.status(400).json({ error: "لم تصل بيانات، تأكد من الفورم" });
+            return res.status(400).json({ error: "السيرفر لم يستلم أي بيانات نصية" });
         }
 
-        const {
-            name = '',
-            mobile = '',
-            specialty = '',
-            fee = '',
-            availability = '',
-            address = '',
-            personal_mobile = '',
-            title = '',
-            city = '',
-            area = ''
-        } = req.body || {};
-
-        const BASE_URL = "https://clinic-api-ig3d.onrender.com";
-
-        const image_url = req.file
-            ? `${BASE_URL}/uploads/${req.file.filename}`
-            : null;
+        const { name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area } = req.body;
+        
+        // هنحط رابط صورة افتراضي مؤقتاً عشان الداتابيز متزعلش
+        const image_url = 'https://via.placeholder.com/150';
 
         const query = `
-            INSERT INTO doctors 
-            (name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, image_url, is_active) 
-            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,FALSE)
-            RETURNING *`;
-
-        const values = [
-            name,
-            mobile,
-            specialty,
-            fee,
-            availability,
-            address,
-            personal_mobile,
-            title,
-            city,
-            area,
-            image_url
-        ];
-
+            INSERT INTO doctors (name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, image_url, is_active) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, FALSE) RETURNING *`;
+        
+        const values = [name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, image_url];
+        
         const result = await pool.query(query, values);
+        res.json({ message: "تم التسجيل بنجاح (بدون صورة حالياً)", doctor: result.rows[0] });
 
-        res.json({
-            message: "✅ تم التسجيل بنجاح",
-            doctor: result.rows[0]
-        });
+    } catch (err) {
+        console.error("❌ خطأ السيرفر:", err.message);
+        res.status(500).json({ error: "فشل في تسجيل البيانات: " + err.message });
+    }
+});
 
     } catch (err) {
         console.error("❌ ERROR FULL:", err);
