@@ -55,7 +55,7 @@ app.post('/register-doctor', upload.single('image'), async (req, res) => {
         } = req.body;
         
         // تعديل لجعل رابط الصور يعمل أونلاين
-        const image_url = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : '';
+        const image_url = req.file ? `https://${req.get('host')}/uploads/${req.file.filename}` : '';
         
         const query = `
             INSERT INTO doctors 
