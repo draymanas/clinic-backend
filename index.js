@@ -28,8 +28,9 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // إعدادات الاتصال بـ PostgreSQL (تمت إزالة التكرار)
+// إعدادات الاتصال بـ PostgreSQL السحابي الأضمن
 const pool = new Pool({
-  connectionString: "postgresql://postgres:Aioota2026as@db.jvaiadgohuvgzgmwqnom.supabase.co:5432/postgres",
+  connectionString: "postgresql://postgres.jvaiadgohuvgzgmwqnom:Aioota2026as@aws-1-eu-central-1.pooler.supabase.com:5432/postgres",
   ssl: {
     rejectUnauthorized: false
   }
