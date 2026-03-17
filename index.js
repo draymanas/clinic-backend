@@ -110,13 +110,16 @@ app.put('/update-appointment-status/:id', async (req, res) => {
 // --- 3. قسم الحجوزات ---
 
 app.post('/book-appointment', async (req, res) => {
-app.post('/book-appointment', async (req, res) => {
-    // 1. استلمها كـ mobile مباشرة من req.body
-    const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price } = req.body;
+    // هنا بنقول له خد الموبايل سواء جالك باسم mobile أو patient_mobile
+    const { doctor_id, doctor_name, patient_name, patient_mobile, mobile, appointment_date, price } = req.body;
+    
+    // نختار القيمة اللي مش فاضية فيهم
+    const finalMobile = mobile || patient_mobile || '';
+
     try {
         const result = await pool.query(
             'INSERT INTO appointments (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-            [doctor_id, doctor_name, patient_name, patient_mobile, appointment_date, price, 'pending']
+            [doctor_id, doctor_name, patient_name, finalMobile, appointment_date, price, 'pending']
         );
         res.json(result.rows[0]);
     } catch (err) {
