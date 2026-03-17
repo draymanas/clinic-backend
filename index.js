@@ -10,7 +10,8 @@ const app = express();
 // --- 1. الإعدادات العامة ---
 app.use(cors());
 app.use(express.json());
-
+// --- ضيف السطر ده تحت app.use(express.json()) مباشرة ---
+app.use(express.urlencoded({ extended: true }));
 // إعداد مجلد الرفع (Uploads) للتأكد من وجوده
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -49,27 +50,27 @@ app.get('/doctors', async (req, res) => {
 
 app.post('/register-doctor', upload.single('image'), async (req, res) => {
     try {
-        const { 
-            name, mobile, specialty, fee, availability, 
-            address, personal_mobile, title, city, area 
-        } = req.body;
-        
-        // تعديل لجعل رابط الصور يعمل أونلاين
-        const image_url = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : '';
-        
+        // تأمين: لو req.body مش موجود السيرفر ميعملش Crash
+        if (!req.body) {
+            return res.status(400).json({ error: "لم تصل أي بيانات للسيرفر" });
+        }
+
+        const { name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area } = req.body;
+
+        // حل مشكلة الـ Mixed Content (صورة 290) بجعل الرابط https دائماً
+        const image_url = req.file ? `https://${req.get('host')}/uploads/${req.file.filename}` : '';
+
         const query = `
-            INSERT INTO doctors 
-            (name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, image_url, is_active) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, FALSE) 
-            RETURNING *`;
+            INSERT INTO doctors (name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, image_url, is_active) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, FALSE) RETURNING *`;
         
         const values = [name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, image_url];
         
         const result = await pool.query(query, values);
-        res.json({ message: "تم إرسال الطلب بنجاح وفي انتظار تفعيل الإدارة", doctor: result.rows[0] });
+        res.json({ message: "تم التسجيل بنجاح", doctor: result.rows[0] });
     } catch (err) {
-        console.error("❌ خطأ تسجيل دكتور:", err.message);
-        res.status(500).json({ error: "فشل في تسجيل البيانات: " + err.message });
+        console.error("❌ خطأ:", err.message);
+        res.status(500).json({ error: "فشل في تسجيل البيانات" });
     }
 });
 
