@@ -50,13 +50,12 @@ app.get('/doctors', async (req, res) => {
 
 app.post('/register-doctor', upload.single('image'), async (req, res) => {
     try {
-        // تأمين: لو req.body مش موجود السيرفر ميعملش Crash
-        if (!req.body) {
-            return res.status(400).json({ error: "لم تصل أي بيانات للسيرفر" });
+        // التأمين ده هيمنع الـ TypeError اللي ظهر في صورة 291
+        if (!req.body || Object.keys(req.body).length === 0) {
+            return res.status(400).json({ error: "لم تصل بيانات، تأكد من استخدام https" });
         }
 
         const { name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area } = req.body;
-
         // حل مشكلة الـ Mixed Content (صورة 290) بجعل الرابط https دائماً
         const image_url = req.file ? `https://${req.get('host')}/uploads/${req.file.filename}` : '';
 
