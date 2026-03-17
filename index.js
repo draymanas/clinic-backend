@@ -110,11 +110,13 @@ app.put('/update-appointment-status/:id', async (req, res) => {
 // --- 3. قسم الحجوزات ---
 
 app.post('/book-appointment', async (req, res) => {
-    // هنا بنقول له خد الموبايل سواء جالك باسم mobile أو patient_mobile
-    const { doctor_id, doctor_name, patient_name, patient_mobile, mobile, appointment_date, price } = req.body;
+    // 1. اطبع كل اللي جاي من الموقع في الـ Console بتاع ريندر
+    console.log("⚠️ بيانات الحجز الواصلة للسيرفر هي:", req.body);
+
+    const { doctor_id, doctor_name, patient_name, mobile, patient_mobile, appointment_date, price } = req.body;
     
-    // نختار القيمة اللي مش فاضية فيهم
-    const finalMobile = mobile || patient_mobile || '';
+    // 2. محاولة استخلاص الرقم بأي شكل
+    const finalMobile = mobile || patient_mobile || "لم يصل رقم";
 
     try {
         const result = await pool.query(
