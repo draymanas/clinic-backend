@@ -57,7 +57,11 @@ app.post('/register-doctor', upload.single('image'), async (req, res) => {
 
         const { name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area } = req.body;
         // حل مشكلة الـ Mixed Content (صورة 290) بجعل الرابط https دائماً
-        const image_url = req.file ? `https://${req.get('host')}/uploads/${req.file.filename}` : '';
+      const BASE_URL = "https://clinic-api-ig3d.onrender.com";
+
+const image_url = req.file
+  ? `${BASE_URL}/uploads/${req.file.filename}`
+  : '';
 
         const query = `
             INSERT INTO doctors (name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, image_url, is_active) 
