@@ -47,33 +47,68 @@ app.get('/doctors', async (req, res) => {
         res.status(500).json({ error: "فشل جلب البيانات" });
     }
 });
-
 app.post('/register-doctor', upload.single('image'), async (req, res) => {
     try {
-        // التأمين ده هيمنع الـ TypeError اللي ظهر في صورة 291
+        console.log("📥 BODY:", req.body);
+        console.log("📸 FILE:", req.file);
+
         if (!req.body || Object.keys(req.body).length === 0) {
-            return res.status(400).json({ error: "لم تصل بيانات، تأكد من استخدام https" });
+            return res.status(400).json({ error: "لم تصل بيانات، تأكد من الفورم" });
         }
 
-        const { name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area } = req.body;
-        // حل مشكلة الـ Mixed Content (صورة 290) بجعل الرابط https دائماً
-      const BASE_URL = "https://clinic-api-ig3d.onrender.com";
+        const {
+            name = '',
+            mobile = '',
+            specialty = '',
+            fee = '',
+            availability = '',
+            address = '',
+            personal_mobile = '',
+            title = '',
+            city = '',
+            area = ''
+        } = req.body || {};
 
-const image_url = req.file
-  ? `${BASE_URL}/uploads/${req.file.filename}`
-  : '';
+        const BASE_URL = "https://clinic-api-ig3d.onrender.com";
+
+        const image_url = req.file
+            ? `${BASE_URL}/uploads/${req.file.filename}`
+            : null;
 
         const query = `
-            INSERT INTO doctors (name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, image_url, is_active) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, FALSE) RETURNING *`;
-        
-        const values = [name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, image_url];
-        
+            INSERT INTO doctors 
+            (name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, image_url, is_active) 
+            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,FALSE)
+            RETURNING *`;
+
+        const values = [
+            name,
+            mobile,
+            specialty,
+            fee,
+            availability,
+            address,
+            personal_mobile,
+            title,
+            city,
+            area,
+            image_url
+        ];
+
         const result = await pool.query(query, values);
-        res.json({ message: "تم التسجيل بنجاح", doctor: result.rows[0] });
+
+        res.json({
+            message: "✅ تم التسجيل بنجاح",
+            doctor: result.rows[0]
+        });
+
     } catch (err) {
-        console.error("❌ خطأ:", err.message);
-        res.status(500).json({ error: "فشل في تسجيل البيانات" });
+        console.error("❌ ERROR FULL:", err);
+
+        res.status(500).json({
+            error: "فشل في تسجيل البيانات",
+            details: err.message
+        });
     }
 });
 
