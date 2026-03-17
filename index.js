@@ -45,7 +45,13 @@ app.get('/doctors', async (req, res) => {
 app.post('/register-doctor', upload.single('image'), async (req, res) => {
     try {
         const { name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area } = req.body;
-        
+        app.post('/register-doctor', upload.single('image'), async (req, res) => {
+    // السطرين دول هم اللي هيقولوا لنا الحقيقة
+    console.log("📦 Body received:", req.body); 
+    console.log("🖼️ File received:", req.file);
+
+    try {
+        // باقي الكود...
         // حل مشكلة التحذير الأصفر (Mixed Content) بإجبار HTTPS
         const host = req.get('host');
         const image_url = req.file ? `https://${host}/uploads/${req.file.filename}` : '';
