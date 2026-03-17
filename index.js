@@ -54,7 +54,7 @@ app.post('/register-doctor', upload.single('image'), async (req, res) => {
         // باقي الكود...
         // حل مشكلة التحذير الأصفر (Mixed Content) بإجبار HTTPS
         const host = req.get('host');
-        const image_url = req.file ? `https://${host}/uploads/${req.file.filename}` : '';
+       const image_url = req.file ? `https://clinic-api-ig3d.onrender.com/uploads/${req.file.filename}` : '';
         
         const query = `
             INSERT INTO doctors 
