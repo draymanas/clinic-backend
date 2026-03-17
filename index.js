@@ -29,7 +29,7 @@ const upload = multer({ storage: storage });
 
 // إعدادات الاتصال بـ PostgreSQL (تمت إزالة التكرار)
 const pool = new Pool({
-  connectionString: "postgresql://postgres.jvaiadgohuvgzgmwqnom:Aioota2026as@aws-1-eu-central-1.pooler.supabase.com:5432/postgres",
+  connectionString: "postgresql://postgres:Aioota2026as@db.jvaiadgohuvgzgmwqnom.supabase.co:5432/postgres",
   ssl: {
     rejectUnauthorized: false
   }
@@ -54,9 +54,8 @@ app.post('/register-doctor', upload.single('image'), async (req, res) => {
             address, personal_mobile, title, city, area 
         } = req.body;
         
-        // استخدام https صريحة لضمان ظهور الصور
-        const host = req.get('host');
-        const image_url = req.file ? `https://${host}/uploads/${req.file.filename}` : '';
+        // تعديل لجعل رابط الصور يعمل أونلاين
+        const image_url = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : '';
         
         const query = `
             INSERT INTO doctors 
@@ -64,17 +63,16 @@ app.post('/register-doctor', upload.single('image'), async (req, res) => {
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, FALSE) 
             RETURNING *`;
         
-        // استخدام parseInt للتأكد من أن السعر رقم وليس نصاً
-        const values = [name, mobile, specialty, parseInt(fee) || 0, availability, address, personal_mobile, title, city, area, image_url];
+        const values = [name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, image_url];
         
         const result = await pool.query(query, values);
         res.json({ message: "تم إرسال الطلب بنجاح وفي انتظار تفعيل الإدارة", doctor: result.rows[0] });
     } catch (err) {
         console.error("❌ خطأ تسجيل دكتور:", err.message);
-        // هنا السيرفر هيقولك بالظبط إيه اللي ناقص (مثلاً عمود معين مش موجود)
         res.status(500).json({ error: "فشل في تسجيل البيانات: " + err.message });
     }
 });
+
 app.delete('/delete-doctor/:id', async (req, res) => {
     try {
         await pool.query('DELETE FROM doctors WHERE id = $1', [req.params.id]);
