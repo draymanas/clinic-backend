@@ -109,13 +109,11 @@ app.put('/update-appointment-status/:id', async (req, res) => {
 
 // --- 3. قسم الحجوزات ---
 
-app.post('/book-public.appointments', async (req, res) => {
-    // 1. استلام البيانات من الفرونت إند
+app.post('/book-appointment', async (req, res) => {
     const { doctor_id, doctor_name, patient_name, patient_mobile, appointment_date, price } = req.body;
     try {
         const result = await pool.query(
-            // التعديل هنا: غيرنا اسم العمود لـ patient_mobile عشان يطابق اللي الدكتور بيشوفه
-            'INSERT INTO appointments (doctor_id, doctor_name, patient_name, patient_mobile, booking_date, price, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+            'INSERT INTO appointments (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
             [doctor_id, doctor_name, patient_name, patient_mobile, appointment_date, price, 'pending']
         );
         res.json(result.rows[0]);
@@ -152,8 +150,8 @@ app.patch('/update-appointment/:id', async (req, res) => {
 
 app.get('/appointments', async (req, res) => {
     try {
-       // التعديل: إضافة كلمة public. قبل اسم الجدول
-const result = await pool.query('SELECT * FROM appointments ORDER BY id DESC');
+        const result = await pool.query('SELECT * FROM appointments ORDER BY id DESC');
+        res.json(result.rows);
     } catch (err) {
         console.error("❌ خطأ جلب كل الحجوزات:", err.message);
         res.status(500).json({ error: "فشل جلب الحجوزات العامة" });
