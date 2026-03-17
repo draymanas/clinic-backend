@@ -175,7 +175,7 @@ cron.schedule('0 * * * *', async () => {
             console.log(`✅ تم تحديث ${result.rowCount} حجز تلقائياً.`);
         }
     } catch (err) {
-        console.error('❌ خطأ في نظام التحديث التلقائي:', err.message);
+        console.error('❌ بعد العوده لنسخة 13 مارس  خطأ في نظام التحديث التلقائي:', err.message);
     }
 });
 
