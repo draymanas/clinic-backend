@@ -10,8 +10,7 @@ const app = express();
 // --- 1. الإعدادات العامة ---
 app.use(cors());
 app.use(express.json());
-// --- ضيف السطر ده تحت app.use(express.json()) مباشرة ---
-app.use(express.urlencoded({ extended: true }));
+
 // إعداد مجلد الرفع (Uploads) للتأكد من وجوده
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -47,42 +46,30 @@ app.get('/doctors', async (req, res) => {
         res.status(500).json({ error: "فشل جلب البيانات" });
     }
 });
-app.post('/register-doctor', async (req, res) => {
+
+app.post('/register-doctor', upload.single('image'), async (req, res) => {
     try {
-        console.log("📥 بيانات واصلة للسيرفر:", req.body);
-
-        // تأمين بسيط
-        if (!req.body || Object.keys(req.body).length === 0) {
-            return res.status(400).json({ error: "السيرفر لم يستلم أي بيانات نصية" });
-        }
-
-        const { name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area } = req.body;
+        const { 
+            name, mobile, specialty, fee, availability, 
+            address, personal_mobile, title, city, area 
+        } = req.body;
         
-        // هنحط رابط صورة افتراضي مؤقتاً عشان الداتابيز متزعلش
-        const image_url = 'https://via.placeholder.com/150';
-
+        // تعديل لجعل رابط الصور يعمل أونلاين
+        const image_url = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : '';
+        
         const query = `
-            INSERT INTO doctors (name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, image_url, is_active) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, FALSE) RETURNING *`;
+            INSERT INTO doctors 
+            (name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, image_url, is_active) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, FALSE) 
+            RETURNING *`;
         
         const values = [name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, image_url];
         
         const result = await pool.query(query, values);
-        res.json({ message: "تم التسجيل بنجاح (بدون صورة حالياً)", doctor: result.rows[0] });
-
+        res.json({ message: "تم إرسال الطلب بنجاح وفي انتظار تفعيل الإدارة", doctor: result.rows[0] });
     } catch (err) {
-        console.error("❌ خطأ السيرفر:", err.message);
+        console.error("❌ خطأ تسجيل دكتور:", err.message);
         res.status(500).json({ error: "فشل في تسجيل البيانات: " + err.message });
-    }
-});
-
-    } catch (err) {
-        console.error("❌ ERROR FULL:", err);
-
-        res.status(500).json({
-            error: "فشل في تسجيل البيانات",
-            details: err.message
-        });
     }
 });
 
@@ -122,11 +109,13 @@ app.put('/update-appointment-status/:id', async (req, res) => {
 
 // --- 3. قسم الحجوزات ---
 
-app.post('/book-appointment', async (req, res) => {
+app.post('/book-public.appointments', async (req, res) => {
+    // 1. استلام البيانات من الفرونت إند
     const { doctor_id, doctor_name, patient_name, patient_mobile, appointment_date, price } = req.body;
     try {
         const result = await pool.query(
-            'INSERT INTO appointments (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+            // التعديل هنا: غيرنا اسم العمود لـ patient_mobile عشان يطابق اللي الدكتور بيشوفه
+            'INSERT INTO appointments (doctor_id, doctor_name, patient_name, patient_mobile, booking_date, price, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
             [doctor_id, doctor_name, patient_name, patient_mobile, appointment_date, price, 'pending']
         );
         res.json(result.rows[0]);
@@ -163,8 +152,8 @@ app.patch('/update-appointment/:id', async (req, res) => {
 
 app.get('/appointments', async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM appointments ORDER BY id DESC');
-        res.json(result.rows);
+       // التعديل: إضافة كلمة public. قبل اسم الجدول
+const result = await pool.query('SELECT * FROM appointments ORDER BY id DESC');
     } catch (err) {
         console.error("❌ خطأ جلب كل الحجوزات:", err.message);
         res.status(500).json({ error: "فشل جلب الحجوزات العامة" });
