@@ -110,11 +110,11 @@ app.put('/update-appointment-status/:id', async (req, res) => {
 // --- 3. قسم الحجوزات ---
 
 app.post('/book-appointment', async (req, res) => {
-    const { doctor_id, doctor_name, patient_name, patient_mobile, appointment_date, price } = req.body;
+    const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price } = req.body;
     try {
         const result = await pool.query(
             'INSERT INTO appointments (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-            [doctor_id, doctor_name, patient_name, patient_mobile, appointment_date, price, 'pending']
+            [doctor_id, doctor_name, patient_name, mobile, appointment_date, price, 'pending']
         );
         res.json(result.rows[0]);
     } catch (err) {
