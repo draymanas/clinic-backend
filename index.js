@@ -55,7 +55,7 @@ app.post('/register-doctor', upload.single('image'), async (req, res) => {
         } = req.body;
         
         // تعديل لجعل رابط الصور يعمل أونلاين
-       const image_url = req.file ? `https://${req.get('host')}/uploads/${req.file.filename}` : '';
+        const image_url = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : '';
         
         const query = `
             INSERT INTO doctors 
@@ -110,40 +110,33 @@ app.put('/update-appointment-status/:id', async (req, res) => {
 // --- 3. قسم الحجوزات ---
 
 app.post('/book-appointment', async (req, res) => {
-    console.log("📥 البيانات:", req.body);
-
-    const { doctor_id, doctor_name, patient_name, mobile, patient_mobile, appointment_date, price } = req.body;
-
-    const finalMobile = mobile || patient_mobile || null;
-
-    console.log("📱 الموبايل بعد المعالجة:", finalMobile);
-
+    const { doctor_id, doctor_name, patient_name, patient_mobile, appointment_date, price } = req.body;
     try {
-        const query = `
-            INSERT INTO appointments 
-            (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7) 
-            RETURNING *
-        `;
-
-        const values = [
-            doctor_id,
-            doctor_name,
-            patient_name,
-            finalMobile,
-            appointment_date,
-            price,
-            'pending'
-        ];
-
-        const result = await pool.query(query, values);
+        const result = await pool.query(
+            'INSERT INTO appointments (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+            [doctor_id, doctor_name, patient_name, patient_mobile, appointment_date, price, 'pending']
+        );
         res.json(result.rows[0]);
-
     } catch (err) {
-        console.error("❌ Error:", err.message);
+        console.error("❌ Database Error:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
+
+app.get('/doctor-appointments/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await pool.query(
+            'SELECT * FROM appointments WHERE doctor_id = $1 ORDER BY id DESC',
+            [id]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send("Server Error");
+    }
+});
+
 app.patch('/update-appointment/:id', async (req, res) => {
     try {
         const { status } = req.body;
