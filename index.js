@@ -106,7 +106,9 @@ app.put('/update-appointment-status/:id', async (req, res) => {
         res.status(500).json({ error: "فشل تحديث حالة الحجز" });
     }
 });
-
+app.get('/test-version', (req, res) => {
+    res.send("النسخة الجديدة تعمل بتاريخ اليوم!");
+});
 // --- 3. قسم الحجوزات ---
 
 app.post('/book-appointment', async (req, res) => {
