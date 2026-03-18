@@ -110,61 +110,40 @@ app.put('/update-appointment-status/:id', async (req, res) => {
 // --- 3. قسم الحجوزات ---
 
 app.post('/book-appointment', async (req, res) => {
-    // 1. اطبع كل اللي جاي من الموقع في الـ Console بتاع ريندر
-    console.log("⚠️ بيانات الحجز الواصلة للسيرفر هي:", req.body);
+    console.log("📥 البيانات:", req.body);
 
     const { doctor_id, doctor_name, patient_name, mobile, patient_mobile, appointment_date, price } = req.body;
-    
-    // 2. محاولة استخلاص الرقم بأي شكل
-    const finalMobile = mobile || patient_mobile || "لم يصل رقم";
+
+    const finalMobile = mobile || patient_mobile || null;
+
+    console.log("📱 الموبايل بعد المعالجة:", finalMobile);
 
     try {
-        const result = await pool.query(
-            'INSERT INTO appointments (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-            [doctor_id, doctor_name, patient_name, finalMobile, appointment_date, price, 'pending']
-        );
-        res.json(result.rows[0]);
-    } catch (err) {
-        console.error("❌ Database Error:", err.message);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post('/book-appointment', async (req, res) => {
-    // 1. استلام البيانات والتأكد منها
-    const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price } = req.body;
-    
-    // 💡 حركة ذكية: لو الموبايل جاي تحت اسم تاني، نمسكه
-    const finalMobile = mobile || req.body.patient_mobile || "0000000000"; 
-
-    try {
-        // 2. جملة الـ SQL (تأكد من ترتيب الأعمدة بالحرف)
         const query = `
             INSERT INTO appointments 
             (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status) 
             VALUES ($1, $2, $3, $4, $5, $6, $7) 
             RETURNING *
         `;
-        
-        // 3. ترتيب القيم (لازم الموبايل يكون رقم 4)
+
         const values = [
-            doctor_id, 
-            doctor_name, 
-            patient_name, 
-            finalMobile,      // 👈 ده رقم $4 اللي بيروح لعمود mobile
-            appointment_date, 
-            price, 
+            doctor_id,
+            doctor_name,
+            patient_name,
+            finalMobile,
+            appointment_date,
+            price,
             'pending'
         ];
 
         const result = await pool.query(query, values);
         res.json(result.rows[0]);
+
     } catch (err) {
-        console.error("❌ Error details:", err.message);
+        console.error("❌ Error:", err.message);
         res.status(500).json({ error: err.message });
     }
 });
-
 app.patch('/update-appointment/:id', async (req, res) => {
     try {
         const { status } = req.body;
