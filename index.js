@@ -117,7 +117,7 @@ app.post('/book-appointment', async (req, res) => {
     try {
         const result = await pool.query(
             `INSERT INTO appointments 
-            (doctor_id, doctor_name, patient_name, mobile, phone_number, booking_date, price, status) 
+            (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status) 
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
             RETURNING *`,
             // 💡 لاحظ هنا بعتنا 'mobile' مرتين: مرة للعمود القديم ومرة للجديد (phone_number)
