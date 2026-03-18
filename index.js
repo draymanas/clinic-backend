@@ -113,15 +113,10 @@ app.get('/test-version', (req, res) => {
 
 app.post('/book-appointment', async (req, res) => {
     const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price } = req.body;
-
     try {
         const result = await pool.query(
-            `INSERT INTO appointments 
-            (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
-            RETURNING *`,
-            // 💡 لاحظ هنا بعتنا 'mobile' مرتين: مرة للعمود القديم ومرة للجديد (phone_number)
-            [doctor_id, doctor_name, patient_name, mobile, mobile, appointment_date, price, 'pending']
+            'INSERT INTO appointments (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+            [doctor_id, doctor_name, patient_name, mobile, appointment_date, price, 'pending']
         );
         res.json(result.rows[0]);
     } catch (err) {
