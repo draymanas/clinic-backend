@@ -1,3 +1,9 @@
+const { createClient } = require('@supabase/supabase-js');
+
+// بيانات الربط (هتلاقيها في إعدادات سوبابيز عندك - API Settings)
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg'); // استدعاء واحد فقط هنا
@@ -21,10 +27,8 @@ if (!fs.existsSync(uploadDir)) {
 app.use('/uploads', express.static(uploadDir));
 
 // إعدادات التخزين لـ Multer
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/'),
-    filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
-});
+// التخزين في الذاكرة المؤقتة فقط (Memory Storage)
+const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 // إعدادات الاتصال بـ PostgreSQL (تمت إزالة التكرار)
@@ -54,9 +58,35 @@ app.post('/register-doctor', upload.single('image'), async (req, res) => {
             address, personal_mobile, title, city, area 
         } = req.body;
         
-        // تعديل لجعل رابط الصور يعمل أونلاين
-        const image_url = req.file ? `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}` : '';
+        let image_url = '';
+
+        // إذا تم رفع صورة، نقوم برفعها لسوبابيز فوراً
+        if (req.file) {
+            // اسم فريد للملف باستخدام الوقت عشان ميتكررش
+            const fileName = `${Date.now()}-${req.file.originalname}`;
+
+            // 1. عملية الرفع لـ Supabase Storage
+            const { data, error } = await supabase.storage
+                .from('avatars') // تأكد إن اسم الـ Bucket عندك "avatars" وهو Public
+                .upload(fileName, req.file.buffer, {
+                    contentType: req.file.mimetype,
+                    upsert: false
+                });
+
+            if (error) {
+                console.error("❌ خطأ رفع الصورة لسوبابيز:", error.message);
+                throw new Error("فشل رفع الصورة للسحابة");
+            }
+
+            // 2. الحصول على الرابط العام المباشر للصورة
+            const { data: publicUrlData } = supabase.storage
+                .from('avatars')
+                .getPublicUrl(fileName);
+
+            image_url = publicUrlData.publicUrl;
+        }
         
+        // 3. تخزين الرابط الجديد في قاعدة البيانات (SQL)
         const query = `
             INSERT INTO doctors 
             (name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, image_url, is_active) 
@@ -67,6 +97,7 @@ app.post('/register-doctor', upload.single('image'), async (req, res) => {
         
         const result = await pool.query(query, values);
         res.json({ message: "تم إرسال الطلب بنجاح وفي انتظار تفعيل الإدارة", doctor: result.rows[0] });
+
     } catch (err) {
         console.error("❌ خطأ تسجيل دكتور:", err.message);
         res.status(500).json({ error: "فشل في تسجيل البيانات: " + err.message });
@@ -113,10 +144,15 @@ app.get('/test-version', (req, res) => {
 
 app.post('/book-appointment', async (req, res) => {
     const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price } = req.body;
+
     try {
         const result = await pool.query(
-            'INSERT INTO appointments (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-            [doctor_id, doctor_name, patient_name, mobile, appointment_date, price, 'pending']
+            `INSERT INTO appointments 
+            (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+            RETURNING *`,
+            // 💡 لاحظ هنا بعتنا 'mobile' مرتين: مرة للعمود القديم ومرة للجديد (phone_number)
+            [doctor_id, doctor_name, patient_name, mobile, mobile, appointment_date, price, 'pending']
         );
         res.json(result.rows[0]);
     } catch (err) {
