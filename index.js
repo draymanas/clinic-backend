@@ -121,6 +121,44 @@ const values = [
     }
 });
 
+// --- تحديث بيانات الطبيب (Update Doctor) ---
+app.put('/api/update-doctor/:id', upload.single('image'), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { name, specialty, fee, availability, address, title } = req.body;
+        let image_url = req.body.image_url; // الرابط القديم لو مغيرش الصورة
+
+        // لو رفع صورة جديدة، نرفعها لسوبابيز ونحدث الرابط
+        if (req.file) {
+            const fileExtension = req.file.originalname.split('.').pop();
+            const fileName = `updated-${Date.now()}-${Math.round(Math.random() * 1E9)}.${fileExtension}`;
+
+            const { data, error } = await supabase.storage
+                .from('avatars')
+                .upload(fileName, req.file.buffer, { contentType: req.file.mimetype });
+
+            if (!error) {
+                const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
+                image_url = publicUrlData.publicUrl;
+            }
+        }
+
+        const query = `
+            UPDATE doctors 
+            SET name=$1, specialty=$2, fee=$3, availability=$4, address=$5, title=$6, image_url=$7
+            WHERE id=$8 
+            RETURNING *`;
+
+        const values = [name, specialty, fee, availability, address, title, image_url, id];
+        const result = await pool.query(query, values);
+
+        res.json({ success: true, message: "تم تحديث بياناتك بنجاح", doctor: result.rows[0] });
+    } catch (err) {
+        console.error("❌ خطأ في التحديث:", err);
+        res.status(500).json({ error: "فشل تحديث البيانات" });
+    }
+});
+
 app.delete('/delete-doctor/:id', async (req, res) => {
     try {
         await pool.query('DELETE FROM doctors WHERE id = $1', [req.params.id]);
