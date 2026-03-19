@@ -63,7 +63,10 @@ app.post('/register-doctor', upload.single('image'), async (req, res) => {
         // إذا تم رفع صورة، نقوم برفعها لسوبابيز فوراً
         if (req.file) {
             // اسم فريد للملف باستخدام الوقت عشان ميتكررش
-            const fileName = `${Date.now()}-${req.file.originalname}`;
+           // 1. استخراج الامتداد من الملف الأصلي (مثلاً .jpg)
+          const fileExtension = req.file.originalname.split('.').pop();
+// 2. تكوين اسم جديد "رقمي" بالكامل مع الحفاظ على الامتداد
+          const fileName = `${Date.now()}-${Math.round(Math.random() * 1E9)}.${fileExtension}`;
 
             // 1. عملية الرفع لـ Supabase Storage
             const { data, error } = await supabase.storage
