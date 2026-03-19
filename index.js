@@ -152,7 +152,7 @@ app.post('/book-appointment', async (req, res) => {
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
             RETURNING *`,
             // 💡 لاحظ هنا بعتنا 'mobile' مرتين: مرة للعمود القديم ومرة للجديد (phone_number)
-            [doctor_id, doctor_name, patient_name, mobile, mobile, appointment_date, price, 'pending']
+            [doctor_id, doctor_name, patient_name, mobile, appointment_date, price, 'pending']
         );
         res.json(result.rows[0]);
     } catch (err) {
