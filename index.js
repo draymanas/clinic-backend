@@ -121,14 +121,19 @@ const values = [
     }
 });
 
-// --- تحديث بيانات الطبيب (Update Doctor) ---
+// --- تحديث بيانات الطبيب المطور (Update Doctor) ---
 app.put('/api/update-doctor/:id', upload.single('image'), async (req, res) => {
     const { id } = req.params;
     try {
-        const { name, specialty, fee, availability, address, title } = req.body;
-        let image_url = req.body.image_url; // الرابط القديم لو مغيرش الصورة
+        // 1. استخراج كل الحقول الجديدة من req.body
+        const { 
+            name, specialty, fee, availability, address, title,
+            mobile, personal_mobile, city, area 
+        } = req.body;
 
-        // لو رفع صورة جديدة، نرفعها لسوبابيز ونحدث الرابط
+        let image_url = req.body.image_url; 
+
+        // 2. معالجة الصورة (كما هي في كودك الأصلي)
         if (req.file) {
             const fileExtension = req.file.originalname.split('.').pop();
             const fileName = `updated-${Date.now()}-${Math.round(Math.random() * 1E9)}.${fileExtension}`;
@@ -143,19 +148,27 @@ app.put('/api/update-doctor/:id', upload.single('image'), async (req, res) => {
             }
         }
 
+        // 3. تحديث الاستعلام (Query) ليشمل كل الأعمدة الجديدة
         const query = `
             UPDATE doctors 
-            SET name=$1, specialty=$2, fee=$3, availability=$4, address=$5, title=$6, image_url=$7
-            WHERE id=$8 
+            SET name=$1, specialty=$2, fee=$3, availability=$4, address=$5, title=$6, image_url=$7,
+                mobile=$8, personal_mobile=$9, city=$10, area=$11
+            WHERE id=$12 
             RETURNING *`;
 
-        const values = [name, specialty, fee, availability, address, title, image_url, id];
+        // 4. ترتيب القيم المتجه لقاعدة البيانات
+        const values = [
+            name, specialty, fee, availability, address, title, image_url,
+            mobile, personal_mobile, city, area, 
+            id
+        ];
+
         const result = await pool.query(query, values);
 
-        res.json({ success: true, message: "تم تحديث بياناتك بنجاح", doctor: result.rows[0] });
+        res.json({ success: true, message: "✅ تم تحديث كافة بياناتك بنجاح", doctor: result.rows[0] });
     } catch (err) {
         console.error("❌ خطأ في التحديث:", err);
-        res.status(500).json({ error: "فشل تحديث البيانات" });
+        res.status(500).json({ error: "فشل تحديث البيانات، تأكد من مطابقة أعمدة قاعدة البيانات" });
     }
 });
 
