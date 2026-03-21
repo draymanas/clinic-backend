@@ -50,6 +50,37 @@ app.get('/doctors', async (req, res) => {
         res.status(500).json({ error: "فشل جلب البيانات" });
     }
 });
+const sendTelegramAlert = async (doctorData) => {
+    const token = '8639669118:AAGOpN9rtWDl_J3kmhoBK3PddqI14jPqEgw';
+    const chatId = '6635887452'; // الرقم اللي جالك من البوت
+    
+    const message = `
+🔔 **تنبيه: طبيب جديد سجل الآن!** 🔔
+
+👤 **الاسم:** د/ ${doctorData.name}
+🎓 **التخصص:** ${doctorData.specialty}
+📍 **المحافظة:** ${doctorData.governorate}
+📞 **الموبايل:** ${doctorData.personal_phone}
+
+يرجى مراجعة لوحة التحكم لتفعيل الحساب.
+    `;
+
+    try {
+        // بنستخدم fetch لو السيرفر Node.js 18+ أو مكتبة axios
+        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: chatId,
+                text: message,
+                parse_mode: 'Markdown'
+            })
+        });
+        console.log("✅ Telegram Notification Sent");
+    } catch (error) {
+        console.error("❌ Telegram Error:", error);
+    }
+};
 
 app.post('/register-doctor', upload.single('image'), async (req, res) => {
     try {
@@ -114,7 +145,7 @@ const values = [
 ]; 
         const result = await pool.query(query, values);
         res.json({ message: "تم إرسال الطلب بنجاح وفي انتظار تفعيل الإدارة", doctor: result.rows[0] });
-
+        await sendTelegramAlert(req.body);
     } catch (err) {
         console.error("❌ خطأ تسجيل دكتور:", err.message);
         res.status(500).json({ error: "فشل في تسجيل البيانات: " + err.message });
