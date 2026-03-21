@@ -12,7 +12,7 @@ const path = require('path');
 const fs = require('fs');
 const cron = require('node-cron');
 const app = express();
-  
+ const axios = require('axios'); // ضيف السطر ده فوق خالص في أول الملف 
 // --- 1. الإعدادات العامة ---
 app.use(cors());
 app.use(express.json());
@@ -50,35 +50,32 @@ app.get('/doctors', async (req, res) => {
         res.status(500).json({ error: "فشل جلب البيانات" });
     }
 });
+
 const sendTelegramAlert = async (doctorData) => {
     const token = '8639669118:AAGOpN9rtWDl_J3kmhoBK3PddqI14jPqEgw';
-    const chatId = '6635887452'; // الرقم اللي جالك من البوت
-    
+    const chatId = '6635887452'; 
+
+    // هنا بنضمن إننا نقرأ الأسماء اللي جاية من الفورم فعلياً (mobile و personal_mobile)
     const message = `
 🔔 **تنبيه: طبيب جديد سجل الآن!** 🔔
 
-👤 **الاسم:** د/ ${doctorData.name}
-🎓 **التخصص:** ${doctorData.specialty}
-📍 **المحافظة:** ${doctorData.governorate}
-📞 **الموبايل:** ${doctorData.personal_phone}
+👤 **الاسم:** د/ ${doctorData.name || 'غير معروف'}
+🎓 **التخصص:** ${doctorData.specialty || 'غير محدد'}
+📍 **المحافظة:** ${doctorData.city || 'غير محددة'}
+📞 **الموبايل:** ${doctorData.personal_mobile || doctorData.mobile || 'غير متاح'}
 
 يرجى مراجعة لوحة التحكم لتفعيل الحساب.
     `;
 
     try {
-        // بنستخدم fetch لو السيرفر Node.js 18+ أو مكتبة axios
-        await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: chatId,
-                text: message,
-                parse_mode: 'Markdown'
-            })
+        await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+            chat_id: chatId,
+            text: message,
+            parse_mode: 'Markdown'
         });
-        console.log("✅ Telegram Notification Sent");
+        console.log("✅ تم إرسال تنبيه تليجرام");
     } catch (error) {
-        console.error("❌ Telegram Error:", error);
+        console.error("❌ خطأ تليجرام:", error.response?.data || error.message);
     }
 };
 
