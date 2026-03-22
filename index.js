@@ -53,7 +53,7 @@ app.get('/doctors', async (req, res) => {
 
 const sendTelegramAlert = async (doctorData) => {
     const token = '8639669118:AAGOpN9rtWDl_J3kmhoBK3PddqI14jPqEgw';
-    const chatId = '6635887452'; 
+    const chatId = 6635887452; 
 
     // هنا بنضمن إننا نقرأ الأسماء اللي جاية من الفورم فعلياً (mobile و personal_mobile)
     const message = `
