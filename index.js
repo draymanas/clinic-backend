@@ -236,6 +236,23 @@ app.put('/update-appointment-status/:id', async (req, res) => {
 app.get('/test-version', (req, res) => {
     res.send("النسخة الجديدة تعمل بتاريخ اليوم!");
 });
+// --- مسار جديد للحجز المباشر بواسطة ID الدكتور ---
+app.get('/doctor-direct/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        // بنجيب بيانات الدكتور وبنتأكد إنه نشط (is_active = true)
+        const result = await pool.query('SELECT * FROM doctors WHERE id = $1', [id]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "عذراً، هذا الطبيب غير موجود في المنصة" });
+        }
+
+        res.json(result.rows[0]);
+    } catch (err) {
+        console.error("❌ خطأ في جلب بيانات الدكتور المباشر:", err.message);
+        res.status(500).json({ error: "فشل في تحميل بيانات الطبيب" });
+    }
+});
 // --- 3. قسم الحجوزات ---
 
 app.post('/book-appointment', async (req, res) => {
