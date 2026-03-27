@@ -1,18 +1,26 @@
+require('dotenv').config(); // ده المحرك اللي بيسحب البيانات من ملف الـ .env
+const express = require('express');
+const cors = require('cors'); // تأكد من وجود هذا السطر
+const app = express();
 const { createClient } = require('@supabase/supabase-js');
 
 // بيانات الربط (هتلاقيها في إعدادات سوبابيز عندك - API Settings)
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
-const express = require('express');
-const cors = require('cors');
 const { Pool } = require('pg'); // استدعاء واحد فقط هنا
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const cron = require('node-cron');
-const app = express();
- const axios = require('axios'); // ضيف السطر ده فوق خالص في أول الملف 
+
+// 3. التحقق (عشان السيرفر ميهنجش لو الملف مش مقروء)
+if (!supabaseUrl || !supabaseKey) {
+  console.error("❌ خطأ: لم يتم العثور على بيانات Supabase في ملف .env");
+  process.exit(1);
+}
+
+const axios = require('axios'); // ضيف السطر ده فوق خالص في أول الملف 
 // --- 1. الإعدادات العامة ---
 app.use(cors());
 app.use(express.json());
@@ -237,20 +245,29 @@ app.get('/test-version', (req, res) => {
     res.send("النسخة الجديدة تعمل بتاريخ اليوم!");
 });
 // --- مسار جديد للحجز المباشر بواسطة ID الدكتور ---
+// 1. هنا بنستقبل الرقم من المتصفح وبنسميه id (اسم مؤقت)
 app.get('/doctor-direct/:id', async (req, res) => {
-    const { id } = req.params;
+    // 1. تحويل الـ id من نص إلى رقم صحيح
+    const doctorId = parseInt(req.params.id);
+
+    console.log("🔍 جاري البحث عن الدكتور رقم:", doctorId);
+
     try {
-        // بنجيب بيانات الدكتور وبنتأكد إنه نشط (is_active = true)
-        const result = await pool.query('SELECT * FROM doctors WHERE id = $1', [id]);
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: "عذراً، هذا الطبيب غير موجود في المنصة" });
+        const { data, error } = await supabase
+            .from('doctors')
+            .select('*')
+            .eq('id', doctorId) // نستخدم المتغير الرقمي هنا
+            .single();
+
+        if (error || !data) {
+            console.error("❌ خطأ من سوبابيز:", error?.message);
+            return res.status(404).json({ error: "الدكتور غير موجود" });
         }
 
-        res.json(result.rows[0]);
+        res.json(data);
     } catch (err) {
-        console.error("❌ خطأ في جلب بيانات الدكتور المباشر:", err.message);
-        res.status(500).json({ error: "فشل في تحميل بيانات الطبيب" });
+        console.error("❌ خطأ داخلي:", err);
+        res.status(500).json({ error: "Internal Server Error" });
     }
 });
 // --- 3. قسم الحجوزات ---
