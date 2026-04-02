@@ -284,6 +284,12 @@ app.post('/book-appointment', async (req, res) => {
             // 💡 لاحظ هنا بعتنا 'mobile' مرتين: مرة للعمود القديم ومرة للجديد (phone_number)
             [doctor_id, doctor_name, patient_name, mobile, appointment_date, price, 'pending']
         );
+        await sendBookingAlert({
+            patient_name: patient_name,
+            mobile: mobile,
+            doctor_name: doctor_name,
+            booking_date: appointment_date // لاحظ إننا استخدمنا القيمة اللي جاية من الفورم
+        });
         res.json(result.rows[0]);
     } catch (err) {
         console.error("Error:", err.message);
@@ -304,6 +310,33 @@ app.get('/doctor-appointments/:id', async (req, res) => {
         res.status(500).send("Server Error");
     }
 });
+
+const sendBookingAlert = async (bookingData) => {
+    const token = '8639669118:AAGOpN9rtWDl_J3kmhoBK3PddqI14jPqEgw';
+    const chatId = 6635887452; 
+
+    const message = `
+📅 **تنبيه: حجز مريض جديد!** 📅
+
+👤 **اسم المريض:** ${bookingData.patient_name || 'غير معروف'}
+📞 **موبايل المريض:** ${bookingData.mobile || 'غير متاح'}
+👨‍⚕️ **عند الدكتور:** ${bookingData.doctor_name || 'غير محدد'}
+⏰ **الموعد:** ${bookingData.booking_date || 'غير محدد'}
+
+يرجى مراجعة المواعيد في لوحة التحكم.
+    `;
+
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    try {
+        await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'Markdown' })
+        });
+    } catch (err) {
+        console.error("❌ فشل إرسال إشعار التليجرام للحجز:", err);
+    }
+};
 
 app.patch('/update-appointment/:id', async (req, res) => {
     try {
