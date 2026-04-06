@@ -91,7 +91,7 @@ app.post('/register-doctor', upload.single('image'), async (req, res) => {
     try {
         const { 
             name, mobile, specialty, fee, availability, 
-            address, personal_mobile, title, city, area 
+            address, personal_mobile, title, city, area, bio 
         } = req.body;
         
         let image_url = '';
@@ -129,8 +129,8 @@ app.post('/register-doctor', upload.single('image'), async (req, res) => {
        // 3. تخزين البيانات في قاعدة البيانات (SQL)
 const query = `
     INSERT INTO doctors 
-    (name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, image_url, is_active) 
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+    (name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, bio, image_url, is_active) 
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
     RETURNING *`;
 
 // هنا لازم نبعت 12 قيمة بالظبط عشان سوبابيز توافق
@@ -144,9 +144,10 @@ const values = [
     personal_mobile,  // $7
     title,            // $8
     city,             // $9
-    area,             // $10
-    image_url,        // $11
-    false             // $12 (قيمة is_active الافتراضية)
+    area,               // $10
+    bio,               // $11        
+    image_url,        // $12
+    false             // $13 (قيمة is_active الافتراضية)
 ]; 
         const result = await pool.query(query, values);
         res.json({ message: "تم إرسال الطلب بنجاح وفي انتظار تفعيل الإدارة", doctor: result.rows[0] });
