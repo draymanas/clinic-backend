@@ -187,19 +187,32 @@ app.put('/api/update-doctor/:id', upload.single('image'), async (req, res) => {
         }
 
         // 3. تحديث الاستعلام (Query) ليشمل كل الأعمدة الجديدة
-        const query = `
-            UPDATE doctors 
-            SET name=$1, specialty=$2, fee=$3, availability=$4, address=$5, title=$6, image_url=$7,
-                mobile=$8, personal_mobile=$9, city=$10, area=$11, bio=$12, password=$13
-            WHERE id=$14 
-            RETURNING *`;
+// في ملف السيرفر (Update Route)
 
-        // 4. ترتيب القيم المتجه لقاعدة البيانات
-        const values = [
-            name, specialty, fee, availability, address, title, image_url,
-            mobile, personal_mobile, city, area, bio, password,
-            id
-        ];
+const query = `
+    UPDATE doctors 
+    SET name=$1, specialty=$2, fee=$3, mobile=$4, availability=$5, 
+        address=$6, personal_mobile=$7, title=$8, city=$9, area=$10, 
+        image_url=$11, bio=$12, password=$13
+    WHERE id=$14 
+    RETURNING *`;
+
+const values = [
+    name,             // $1
+    specialty,        // $2
+    fee,              // $3
+    mobile,           // $4 (رقم الحجز - العمود الخامس في سوبا لو شلنا الـ id)
+    availability,     // $5
+    address,          // $6
+    personal_mobile,  // $7 (الرقم الشخصي - العمود الثامن في سوبا لو شلنا الـ id)
+    title,            // $8
+    city,             // $9
+    area,             // $10
+    image_url,        // $11
+    bio,              // $12
+    password,         // $13
+    id                // $14
+];
 
         const result = await pool.query(query, values);
 
