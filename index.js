@@ -258,6 +258,20 @@ app.put('/update-doctor-order/:id', async (req, res) => {
   res.json({ message: "تم تحديث الترتيب بنجاح" });
 });
 
+// API لتغيير حالة "التميز" من لوحة الإدارة
+app.put('/update-doctor-featured/:id', async (req, res) => {
+  const { id } = req.params;
+  const { featured } = req.body; 
+
+  const { data, error } = await supabase
+    .from('doctors')
+    .update({ featured: featured }) 
+    .eq('id', id);
+
+  if (error) return res.status(400).json({ error: error.message });
+  res.json({ message: "تم تحديث التميز" });
+});
+
 app.put('/update-appointment-status/:id', async (req, res) => {
     const { id } = req.params;
     const { status } = req.body; 
