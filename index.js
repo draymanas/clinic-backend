@@ -242,6 +242,22 @@ app.put('/toggle-doctor/:id', async (req, res) => {
     }
 });
 
+// ميزة تحديث ترتيب الطبيب من صفحة الإدارة
+app.put('/update-doctor-order/:id', async (req, res) => {
+  const { id } = req.params;
+  const { sort_order } = req.body;
+
+  const { data, error } = await supabase
+    .from('doctors')
+    .update({ sort_order: parseInt(sort_order) })
+    .eq('id', id);
+
+  if (error) {
+    return res.status(400).json({ error: error.message });
+  }
+  res.json({ message: "تم تحديث الترتيب بنجاح" });
+});
+
 app.put('/update-appointment-status/:id', async (req, res) => {
     const { id } = req.params;
     const { status } = req.body; 
