@@ -424,6 +424,47 @@ cron.schedule('0 * * * *', async () => {
         console.error('❌ خطأ في نظام التحديث التلقائي:', err.message);
     }
 });
+// --- 5. نظام الاستشارات الطبية (تم تعريفهم مرة واحدة فقط) ---
+
+// API لاستقبال الاستشارة الطبية من الموقع
+app.post('/api/consultations', async (req, res) => {
+    const { name, phone, question } = req.body;
+    try {
+        const { data, error } = await supabase
+            .from('consultations')
+            .insert([{ name, phone, question, status: 'pending' }]);
+
+        if (error) throw error;
+
+        const message = `🩺 **استشارة جديدة من:** ${name}%0A📞 **موبايل:** ${phone}%0A❓ **السؤال:** ${question}`;
+        await axios.post(`https://api.telegram.org/bot8639669118:AAGOpN9rtWDl_J3kmhoBK3PddqI14jPqEgw/sendMessage`, {
+            chat_id: 6635887452,
+            text: message,
+            parse_mode: 'Markdown'
+        });
+
+        res.json({ success: true, message: "تم إرسال استشارتك بنجاح!" });
+    } catch (err) {
+        console.error("❌ خطأ في استقبال الاستشارة:", err);
+        res.status(500).json({ error: "فشل إرسال الاستشارة" });
+    }
+});
+
+// API لعرض الأسئلة التي تم الرد عليها للجمهور
+app.get('/api/consultations/answered', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('consultations')
+            .select('*')
+            .eq('status', 'answered')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: "فشل جلب الاستشارات" });
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`
