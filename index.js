@@ -482,21 +482,47 @@ app.get('/api/admin/consultations', async (req, res) => {
 });
 
 // 2. API خاص بصفحة الأدمن لتحديث الإجابة والحالة للاستشارة
+// 2. API خاص بصفحة الأدمن لتحديث الإجابة والحالة للاستشارة (نسخة مصلحة ومؤمنة)
 app.put('/api/admin/consultations/:id', async (req, res) => {
-    const { id } = req.params;
+    // 1. تحويل الـ id القادم من الرابط إلى رقم صحيح لمنع تعارض الأنواع مع سوبابيز
+    const consultationId = parseInt(req.params.id);
     const { answer, status } = req.body;
 
+    // طباعة البيانات في الـ Logs لمراقبة وصولها بنجاح
+    console.log(`🔄 محاولة تحديث الاستشارة رقم: ${consultationId}`, { answer, status });
+
+    // فحص سريع للتأكد من أن الـ ID تم تحويله لرقم بنجاح
+    if (isNaN(consultationId)) {
+        return res.status(400).json({ error: "معرف الاستشارة غير صحيح (يجب أن يكون رقماً)" });
+    }
+
     try {
+        // 2. تنفيذ التحديث في سوبابيز مع إضافة .select() لضمان إتمام العملية وتأكيدها
         const { data, error } = await supabase
             .from('consultations')
-            .update({ answer, status })
-            .eq('id', id);
+            .update({ answer: answer, status: status })
+            .eq('id', consultationId) // استخدام المتغير الرقمي المصلح هنا
+            .select();
 
-        if (error) throw error;
-        res.json({ success: true, message: "تم تحديث الاستشارة بنجاح!" });
+        if (error) {
+            console.error("❌ خطأ مباشر من Supabase:", error.message);
+            throw error;
+        }
+
+        // 3. التحقق مما إذا كان السطر موجوداً وتم تحديثه بالفعل
+        if (!data || data.length === 0) {
+            console.warn(`⚠️ لم يتم العثور على أي استشارة مطابقة للـ ID: ${consultationId}`);
+            return res.status(404).json({ error: "لم يتم العثور على الاستشارة لتحديثها، قد يكون الـ ID خاطئ" });
+        }
+
+        console.log("✅ تم التحديث بنجاح في Supabase للسطر:", data[0]);
+        
+        // إرجاع استجابة نجاح واضحة للمتصفح
+        res.json({ success: true, message: "تم تحديث الاستشارة بنجاح!", updatedData: data[0] });
+        
     } catch (err) {
-        console.error("❌ خطأ في تحديث الاستشارة:", err);
-        res.status(500).json({ error: "فشل تحديث الاستشارة" });
+        console.error("❌ خطأ شامل في السيرفر أثناء التحديث:", err);
+        res.status(500).json({ error: "فشل تحديث الاستشارة", details: err.message });
     }
 });
 
