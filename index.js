@@ -465,6 +465,40 @@ app.get('/api/consultations/answered', async (req, res) => {
         res.status(500).json({ error: "فشل جلب الاستشارات" });
     }
 });
+// 1. API خاص بصفحة الأدمن لجلب جَميع الاستشارات (المعلقة والمردود عليها)
+app.get('/api/admin/consultations', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('consultations')
+            .select('*')
+            .order('created_at', { ascending: false }); // جلب الكل وترتيبها من الأحدث للأقدم
+
+        if (error) throw error;
+        res.json(data);
+    } catch (err) {
+        console.error("❌ خطأ في جلب استشارات الأدمن:", err);
+        res.status(500).json({ error: "فشل جلب الاستشارات للأدمن" });
+    }
+});
+
+// 2. API خاص بصفحة الأدمن لتحديث الإجابة والحالة للاستشارة
+app.put('/api/admin/consultations/:id', async (req, res) => {
+    const { id } = req.params;
+    const { answer, status } = req.body;
+
+    try {
+        const { data, error } = await supabase
+            .from('consultations')
+            .update({ answer, status })
+            .eq('id', id);
+
+        if (error) throw error;
+        res.json({ success: true, message: "تم تحديث الاستشارة بنجاح!" });
+    } catch (err) {
+        console.error("❌ خطأ في تحديث الاستشارة:", err);
+        res.status(500).json({ error: "فشل تحديث الاستشارة" });
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`
