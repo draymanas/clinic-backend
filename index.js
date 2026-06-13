@@ -356,6 +356,7 @@ app.get('/doctor-appointments/:id', async (req, res) => {
     }
 });
 
+
 const sendBookingAlert = async (bookingData) => {
     const token = '8639669118:AAGOpN9rtWDl_J3kmhoBK3PddqI14jPqEgw';
     const chatId = 6635887452; 
