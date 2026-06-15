@@ -356,7 +356,6 @@ app.get('/doctor-appointments/:id', async (req, res) => {
     }
 });
 
-
 const sendBookingAlert = async (bookingData) => {
     const token = '8639669118:AAGOpN9rtWDl_J3kmhoBK3PddqI14jPqEgw';
     const chatId = 6635887452; 
@@ -404,16 +403,7 @@ app.get('/appointments', async (req, res) => {
         res.status(500).json({ error: "فشل جلب الحجوزات العامة" });
     }
 });
-const addNotification = async (userId, userType, title, message) => {
-    try {
-        await pool.query(
-            `INSERT INTO notifications (user_id, user_type, title, message) VALUES ($1, $2, $3, $4)`,
-            [userId, userType, title, message]
-        );
-    } catch (err) {
-        console.error("خطأ في تسجيل الإشعار:", err);
-    }
-};
+
 // --- 4. تشغيل السيرفر ---
 const PORT = process.env.PORT || 5000;
 
