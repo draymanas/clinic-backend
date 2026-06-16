@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors'); // تأكد من وجود هذا السطر
 const app = express();
 const { createClient } = require('@supabase/supabase-js');
-
+const axios = require('axios'); // ضيف السطر ده فوق خالص في أول الملف 
 // بيانات الربط (هتلاقيها في إعدادات سوبابيز عندك - API Settings)
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_KEY;
@@ -13,6 +13,17 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const cron = require('node-cron');
+const serviceAccount = require('./serviceAccountKey.json');
+
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getMessaging } = require('firebase-admin/messaging');
+
+
+initializeApp({
+  credential: cert(serviceAccount)
+});
+
+console.log("✅ Firebase Admin initialized successfully!");
 
 // 3. التحقق (عشان السيرفر ميهنجش لو الملف مش مقروء)
 if (!supabaseUrl || !supabaseKey) {
@@ -20,7 +31,7 @@ if (!supabaseUrl || !supabaseKey) {
   process.exit(1);
 }
 
-const axios = require('axios'); // ضيف السطر ده فوق خالص في أول الملف 
+
 // --- 1. الإعدادات العامة ---
 app.use(cors());
 app.use(express.json());
@@ -314,27 +325,45 @@ app.get('/doctor-direct/:id', async (req, res) => {
         console.error("❌ خطأ داخلي:", err);
         res.status(500).json({ error: "Internal Server Error" });
     }
-});
-// --- 3. قسم الحجوزات ---
-
-app.post('/book-appointment', async (req, res) => {
-    const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price, status } = req.body;
+});app.post('/book-appointment', async (req, res) => {
+    const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price } = req.body;
 
     try {
+        // 1. حفظ الحجز في قاعدة البيانات
         const result = await pool.query(
             `INSERT INTO appointments 
             (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status) 
             VALUES ($1, $2, $3, $4, $5, $6, $7) 
             RETURNING *`,
-            // 💡 لاحظ هنا بعتنا 'mobile' مرتين: مرة للعمود القديم ومرة للجديد (phone_number)
             [doctor_id, doctor_name, patient_name, mobile, appointment_date, price, 'pending']
         );
+
+        // 2. جلب التوكن الخاص بالطبيب
+        const doctorRes = await pool.query('SELECT fcm_token FROM doctors WHERE id = $1', [doctor_id]);
+        const fcmToken = doctorRes.rows[0]?.fcm_token;
+
+        // 3. إرسال الإشعار إذا كان التوكن موجوداً
+        if (fcmToken) {
+            const message = {
+                notification: {
+                    title: 'حجز جديد',
+                    body: `لديك حجز جديد مع المريض: ${patient_name}`
+                },
+                token: fcmToken
+            };
+            
+            await admin.messaging().send(message);
+            console.log("✅ تم إرسال الإشعار للطبيب بنجاح");
+        }
+
+        // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
         await sendBookingAlert({
             patient_name: patient_name,
             mobile: mobile,
             doctor_name: doctor_name,
-            booking_date: appointment_date // لاحظ إننا استخدمنا القيمة اللي جاية من الفورم
+            booking_date: appointment_date
         });
+
         res.json(result.rows[0]);
     } catch (err) {
         console.error("Error:", err.message);
@@ -382,6 +411,20 @@ const sendBookingAlert = async (bookingData) => {
         console.error("❌ فشل إرسال إشعار التليجرام للحجز:", err);
     }
 };
+
+app.post('/api/save-token', async (req, res) => {
+    const { doctorId, fcmToken } = req.body;
+    try {
+        await pool.query(
+            'UPDATE doctors SET fcm_token = $1 WHERE id = $2',
+            [fcmToken, doctorId]
+        );
+        res.status(200).json({ message: "تم تحديث التوكن بنجاح" });
+    } catch (err) {
+        console.error("خطأ في حفظ التوكن:", err);
+        res.status(500).json({ error: "فشل حفظ التوكن" });
+    }
+});
 
 app.patch('/update-appointment/:id', async (req, res) => {
     try {
