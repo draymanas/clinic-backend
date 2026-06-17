@@ -340,7 +340,7 @@ app.get('/doctor-direct/:id', async (req, res) => {
         const fcmToken = doctorRes.rows[0]?.fcm_token;
 
         // 3. إرسال الإشعار إذا كان التوكن موجوداً
-        if (fcmToken) {
+       // if (fcmToken) {
             const message = {
                 notification: {
                     title: 'حجز جديد',
@@ -349,7 +349,7 @@ app.get('/doctor-direct/:id', async (req, res) => {
                 token: fcmToken
             };
             
-             await admin.messaging().send(message);
+           // await admin.messaging().send(message);
             console.log("✅ تم إرسال الإشعار للطبيب بنجاح");
         //}
 
