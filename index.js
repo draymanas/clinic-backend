@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors'); // تأكد من وجود هذا السطر
 const app = express();
 const admin = require('firebase-admin');
+const { getMessaging } = require('firebase-admin/messaging'); // أضف هذا السطر
 const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios'); // ضيف السطر ده فوق خالص في أول الملف 
 // بيانات الربط (هتلاقيها في إعدادات سوبابيز عندك - API Settings)
@@ -16,7 +17,9 @@ const fs = require('fs');
 const cron = require('node-cron');
 
 //const { initializeApp, cert } = require('firebase-admin/app');
-const { getMessaging } = require('firebase-admin/messaging');
+admin.initializeApp({
+  credential: admin.credential.cert(require('./serviceAccountKey.json'))
+});
 
 
 
