@@ -340,18 +340,24 @@ app.get('/doctor-direct/:id', async (req, res) => {
         const fcmToken = doctorRes.rows[0]?.fcm_token;
 
         // 3. إرسال الإشعار إذا كان التوكن موجوداً
-       // if (fcmToken) {
-            const message = {
-                notification: {
-                    title: 'حجز جديد',
-                    body: `لديك حجز جديد مع المريض: ${patient_name}`
-                },
-                token: fcmToken
-            };
-            
-           // await admin.messaging().send(message);
-            console.log("✅ تم إرسال الإشعار للطبيب بنجاح");
-        //}
+      // 3. إرسال الإشعار
+if (fcmToken) {
+    const message = {
+        notification: {
+            title: 'حجز جديد',
+            body: `لديك حجز جديد مع المريض: ${patient_name}`
+        },
+        token: fcmToken
+    };
+    
+    try {
+        console.log("🔄 محاولة إرسال الإشعار...");
+        await admin.messaging().send(message);
+        console.log("✅ تم إرسال الإشعار للطبيب بنجاح");
+    } catch (error) {
+        console.error("❌ فشل إرسال الإشعار للأسباب التالية:", error);
+    }
+}
 
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
         await sendBookingAlert({
