@@ -13,14 +13,14 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const cron = require('node-cron');
-const serviceAccount = require('./serviceAccountKey.json');
 
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getMessaging } = require('firebase-admin/messaging');
 const admin = require('firebase-admin');
 
-initializeApp({
-  credential: cert(serviceAccount)
+const serviceAccount = require('./serviceAccountKey.json');
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
 });
 
 console.log("✅ Firebase Admin initialized successfully!");
