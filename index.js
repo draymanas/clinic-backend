@@ -16,11 +16,11 @@ const fs = require('fs');
 const cron = require('node-cron');
 
 //const { initializeApp, cert } = require('firebase-admin/app');
-//const { getMessaging } = require('firebase-admin/messaging');
+const { getMessaging } = require('firebase-admin/messaging');
 
 
 
-//console.log("✅ Firebase Admin initialized successfully!");
+console.log("✅ Firebase Admin initialized successfully!");
 
 // 3. التحقق (عشان السيرفر ميهنجش لو الملف مش مقروء)
 if (!supabaseUrl || !supabaseKey) {
