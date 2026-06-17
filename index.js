@@ -359,7 +359,8 @@ if (fcmToken) {
     
     try {
         console.log("🔄 محاولة إرسال الإشعار...");
-        await admin.messaging().send(message);
+       // استبدل السطر المسبب للخطأ بهذا السطر:
+await getMessaging().send(message);
         console.log("✅ تم إرسال الإشعار للطبيب بنجاح");
     } catch (error) {
         console.error("❌ فشل إرسال الإشعار للأسباب التالية:", error);
