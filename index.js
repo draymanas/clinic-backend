@@ -1,35 +1,32 @@
-require('dotenv').config();
+require('dotenv').config(); // ده المحرك اللي بيسحب البيانات من ملف الـ .env
 const express = require('express');
-const cors = require('cors');
-const admin = require('firebase-admin');
+const cors = require('cors'); // تأكد من وجود هذا السطر
+const app = express();
+//const admin = require('firebase-admin');
 const { createClient } = require('@supabase/supabase-js');
-const axios = require('axios');
-const { Pool } = require('pg');
+const axios = require('axios'); // ضيف السطر ده فوق خالص في أول الملف 
+// بيانات الربط (هتلاقيها في إعدادات سوبابيز عندك - API Settings)
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+const { Pool } = require('pg'); // استدعاء واحد فقط هنا
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const cron = require('node-cron');
 
-// استدعاء ملف مفاتيح Firebase (تأكد من وجوده في نفس مجلد index.js)
-const serviceAccount = require('./serviceAccountKey.json');
+//const { initializeApp, cert } = require('firebase-admin/app');
+//const { getMessaging } = require('firebase-admin/messaging');
 
-// التهيئة الصحيحة التي تضمن عمل admin.credential.cert
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
 
-// تعريف الـ messaging للتعامل مع الإشعارات
-const messaging = admin.messaging();
 
-// إعدادات Supabase
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+//console.log("✅ Firebase Admin initialized successfully!");
 
-console.log("✅ Firebase & Supabase Initialized Successfully!");
-
-const app = express();
-// ... باقي كودك (Middleware, Routes, إلخ)
+// 3. التحقق (عشان السيرفر ميهنجش لو الملف مش مقروء)
+if (!supabaseUrl || !supabaseKey) {
+  console.error("❌ خطأ: لم يتم العثور على بيانات Supabase في ملف .env");
+  process.exit(1);
+}
 
 
 // --- 1. الإعدادات العامة ---
@@ -354,7 +351,7 @@ app.get('/doctor-direct/:id', async (req, res) => {
             
              await admin.messaging().send(message);
             console.log("✅ تم إرسال الإشعار للطبيب بنجاح");
-        }
+        //}
 
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
         await sendBookingAlert({
