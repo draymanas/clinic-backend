@@ -367,6 +367,26 @@ await getMessaging().send(message);
     }
 }
 
+// بعد إرسال إشعار الطبيب بنجاح، أضف هذا الجزء للأدمن:
+const adminToken = process.env.ADMIN_FCM_TOKEN; // التوكن الخاص بك
+
+if (adminToken) {
+    const adminMessage = {
+        notification: {
+            title: 'تنبيه: حجز جديد في العيادة',
+            body: `حجز جديد مع الطبيب: ${doctor_name} للمريض: ${patient_name}`
+        },
+        token: adminToken
+    };
+
+    try {
+         getMessaging().send(adminMessage);
+        console.log("✅ تم إرسال إشعار للأدمن بنجاح");
+    } catch (error) {
+        console.error("❌ فشل إرسال إشعار الأدمن:", error.message);
+    }
+}
+
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
         await sendBookingAlert({
             patient_name: patient_name,
