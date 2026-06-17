@@ -1,32 +1,38 @@
-require('dotenv').config(); // ده المحرك اللي بيسحب البيانات من ملف الـ .env
+require('dotenv').config(); 
 const express = require('express');
-const cors = require('cors'); // تأكد من وجود هذا السطر
+const cors = require('cors'); 
 const app = express();
-//const admin = require('firebase-admin');
+const admin = require('firebase-admin');
 const { createClient } = require('@supabase/supabase-js');
-const axios = require('axios'); // ضيف السطر ده فوق خالص في أول الملف 
-// بيانات الربط (هتلاقيها في إعدادات سوبابيز عندك - API Settings)
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
-const { Pool } = require('pg'); // استدعاء واحد فقط هنا
+const axios = require('axios'); 
+const { Pool } = require('pg');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const cron = require('node-cron');
 
-//const { initializeApp, cert } = require('firebase-admin/app');
-//const { getMessaging } = require('firebase-admin/messaging');
+// استدعاء ملف مفاتيح Firebase (تأكد من وجود serviceAccountKey.json في نفس المجلد)
+const serviceAccount = require('./serviceAccountKey.json');
 
+// التهيئة الصحيحة لـ Firebase
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
 
+// بيانات الربط الخاصة بـ Supabase
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
-//console.log("✅ Firebase Admin initialized successfully!");
+console.log("✅ Firebase Admin & Supabase initialized successfully!");
 
 // 3. التحقق (عشان السيرفر ميهنجش لو الملف مش مقروء)
 if (!supabaseUrl || !supabaseKey) {
   console.error("❌ خطأ: لم يتم العثور على بيانات Supabase في ملف .env");
   process.exit(1);
 }
+
+// باقي كود السيرفر يوضع هنا...
 
 
 // --- 1. الإعدادات العامة ---
