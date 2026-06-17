@@ -16,7 +16,7 @@ const path = require('path');
 const fs = require('fs');
 const cron = require('node-cron');
 
-//const { initializeApp, cert } = require('firebase-admin/app');
+const { initializeApp, cert } = require('firebase-admin/app');
 admin.initializeApp({
   credential: admin.credential.cert(require('./serviceAccountKey.json'))
 });
