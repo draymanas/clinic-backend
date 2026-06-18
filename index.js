@@ -387,19 +387,19 @@ if (adminToken) {
     }
 }
 // إرسال إشعار للمريض باستخدام التوكن الذي وصل للتو
-if (fcm_token) {
-    const patientMessage = {
-        notification: {
-            title: 'تأكيد الحجز',
-            body: `تم حجز موعدك بنجاح مع د. ${doctor_name}`
-        },
-        token: fcm_token
-    };
-    
-    getMessaging().send(patientMessage).catch(err => 
-        console.error("❌ فشل إرسال إشعار المريض:", err.message)
-    );
-}
+// عدل كود السيرفر ليصبح بهذا الشكل
+const patientMessage = {
+    notification: {
+        title: 'تأكيد الحجز',
+        body: `تم حجز موعدك بنجاح مع د. ${doctor_name}`
+    },
+    data: { // أضف هذا الجزء، فهو يساعد في ظهور الإشعار على أجهزة Capacitor
+        title: 'تأكيد الحجز',
+        body: `تم حجز موعدك بنجاح مع د. ${doctor_name}`,
+        click_action: 'FLUTTER_NOTIFICATION_CLICK' // هذا الجزء يساعد أحياناً في تفعيل الإشعار
+    },
+    token: fcm_token
+};
 
 
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
