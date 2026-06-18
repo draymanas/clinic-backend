@@ -330,16 +330,16 @@ app.get('/doctor-direct/:id', async (req, res) => {
         res.status(500).json({ error: "Internal Server Error" });
     }
 });app.post('/book-appointment', async (req, res) => {
-    const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price } = req.body;
+    const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price, fcm_token } = req.body;
 
     try {
         // 1. حفظ الحجز في قاعدة البيانات
         const result = await pool.query(
             `INSERT INTO appointments 
-            (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7) 
+            (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status, fcm_token) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
             RETURNING *`,
-            [doctor_id, doctor_name, patient_name, mobile, appointment_date, price, 'pending']
+            [doctor_id, doctor_name, patient_name, mobile, appointment_date, price, 'pending', fcm_token]
         );
 
         // 2. جلب التوكن الخاص بالطبيب
@@ -386,6 +386,21 @@ if (adminToken) {
         console.error("❌ فشل إرسال إشعار الأدمن:", error.message);
     }
 }
+// إرسال إشعار للمريض باستخدام التوكن الذي وصل للتو
+if (fcm_token) {
+    const patientMessage = {
+        notification: {
+            title: 'تأكيد الحجز',
+            body: `تم حجز موعدك بنجاح مع د. ${doctor_name}`
+        },
+        token: fcm_token
+    };
+    
+    getMessaging().send(patientMessage).catch(err => 
+        console.error("❌ فشل إرسال إشعار المريض:", err.message)
+    );
+}
+
 
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
         await sendBookingAlert({
