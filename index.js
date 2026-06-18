@@ -388,18 +388,36 @@ if (adminToken) {
 }
 // إرسال إشعار للمريض باستخدام التوكن الذي وصل للتو
 // عدل كود السيرفر ليصبح بهذا الشكل
-const patientMessage = {
-    notification: {
-        title: 'تأكيد الحجز',
-        body: `تم حجز موعدك بنجاح مع د. ${doctor_name}`
-    },
-    data: { // أضف هذا الجزء، فهو يساعد في ظهور الإشعار على أجهزة Capacitor
-        title: 'تأكيد الحجز',
-        body: `تم حجز موعدك بنجاح مع د. ${doctor_name}`,
-        click_action: 'FLUTTER_NOTIFICATION_CLICK' // هذا الجزء يساعد أحياناً في تفعيل الإشعار
-    },
-    token: fcm_token
-};
+if (fcm_token) {
+    // 1. تعريف محتوى الرسالة بشكل شامل لضمان التوافق مع أندرويد و Capacitor
+    const patientMessage = {
+        notification: {
+            title: 'تأكيد الحجز',
+            body: `تم حجز موعدك بنجاح مع د. ${doctor_name}`
+        },
+        data: {
+            // إضافة حقل data يساعد في توصيل الإشعار في الخلفية
+            title: 'تأكيد الحجز',
+            body: `تم حجز موعدك بنجاح مع د. ${doctor_name}`,
+            doctor_name: doctor_name, // يمكنك إضافة بيانات إضافية هنا
+            type: 'BOOKING_CONFIRMED'
+        },
+        token: fcm_token
+    };
+
+    // 2. طباعة التوكن للتأكد في السجلات (Logs)
+    console.log("🚀 محاولة إرسال إشعار للمريض. التوكن:", fcm_token);
+
+    // 3. محاولة الإرسال
+    getMessaging().send(patientMessage)
+        .then((response) => {
+            console.log("✅ تم إرسال إشعار المريض بنجاح، معرف الرسالة:", response);
+        })
+        .catch((err) => {
+            console.error("❌ فشل إرسال إشعار المريض:", err.message);
+            // إذا ظهر خطأ هنا مثل 'requested entity was not found'، فالـ token غير صحيح
+        });
+}
 
 
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
