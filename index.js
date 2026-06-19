@@ -348,7 +348,44 @@ app.get('/doctor-direct/:id', async (req, res) => {
 
         // 3. إرسال الإشعار إذا كان التوكن موجوداً
       // 3. إرسال الإشعار
-// 4. إرسال إشعار للمريض (استخدام التوكن اللي جاي في الـ body مباشرة)
+if (fcmToken) {
+    const message = {
+        notification: {
+            title: 'حجز جديد',
+            body: `لديك حجز جديد مع المريض: ${patient_name}`
+        },
+        token: fcmToken
+    };
+    
+    try {
+        console.log("🔄 محاولة إرسال الإشعار...");
+       // استبدل السطر المسبب للخطأ بهذا السطر:
+await getMessaging().send(message);
+        console.log("✅ تم إرسال الإشعار للطبيب بنجاح");
+    } catch (error) {
+        console.error("❌ فشل إرسال الإشعار للأسباب التالية:", error);
+    }
+}
+
+// بعد إرسال إشعار الطبيب بنجاح، أضف هذا الجزء للأدمن:
+const adminToken = process.env.ADMIN_FCM_TOKEN; // التوكن الخاص بك
+
+if (adminToken) {
+    const adminMessage = {
+        notification: {
+            title: 'تنبيه: حجز جديد في العيادة',
+            body: `حجز جديد مع الطبيب: ${doctor_name} للمريض: ${patient_name}`
+        },
+        token: adminToken
+    };
+
+    try {
+         getMessaging().send(adminMessage);
+        console.log("✅ تم إرسال إشعار للأدمن بنجاح");
+    } catch (error) {
+        console.error("❌ فشل إرسال إشعار الأدمن:", error.message);
+    }
+}
 if (fcm_token) {
     const patientMessage = {
         notification: {
@@ -367,6 +404,34 @@ if (fcm_token) {
 } else {
     console.log("⚠️ المريض لم يرسل fcm_token في الـ Body");
 }
+app.post('/send-notification', async (req, res) => {
+    // الموبايل هيبعت: fcm_token و id و أي بيانات تانية
+    const { fcm_token, id, patient_name } = req.body; 
+
+    console.log("🔥 استلمت بيانات الحجز رقم:", id, "للمريض:", patient_name);
+    console.log("📌 التوكن اللي واصل هو:", fcm_token);
+
+    if (!fcm_token) {
+        return res.status(400).send("❌ خطأ: مفيش توكن واصل في الطلب ده!");
+    }
+
+    const message = {
+        notification: {
+            title: 'تأكيد الحجز',
+            body: `تم حجز موعدك يا ${patient_name || 'مريضنا'}`
+        },
+        token: fcm_token
+    };
+
+    try {
+        await getMessaging().send(message);
+        console.log("✅ تم إرسال إشعار المريض صاحب الـ ID رقم:", id);
+        res.status(200).send("Success");
+    } catch (err) {
+        console.log("⚠️ فشل الإرسال:", err.message);
+        res.status(500).send("Error");
+    }
+});
 
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
         await sendBookingAlert({
