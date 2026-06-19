@@ -387,7 +387,10 @@ if (adminToken) {
     }
 }
 // إرسال إشعار للمريض باستخدام التوكن الذي وصل للتو
-const { appointmentId } = req.body; 
+// أضف هذا السطر في أول الدالة فوراً
+console.log("📦 البيانات التي استقبلها السيرفر من الموبايل هي:", JSON.stringify(req.body));
+
+const { appointmentId } = req.body;
 console.log("🔍 محاولة إرسال إشعار للحجز رقم:", appointmentId); // ده عشان تتابع في اللوجز
 
 const { data: appointment } = await supabase
