@@ -386,36 +386,19 @@ if (adminToken) {
         console.error("❌ فشل إرسال إشعار الأدمن:", error.message);
     }
 }
-if (fcm_token) {
-    const patientMessage = {
-        token: fcm_token,
-        notification: {
-            title: 'تأكيد الحجز',
-            body: 'تم حجز موعدك بنجاح'
-          },
-        data: {
-        // هذه البيانات تجبر التطبيق على "الانتباه" للإشعار
+const patientMessage = {
+    token: fcm_token,
+    data: {
+        title: 'تأكيد الحجز',
+        body: 'تم حجز موعدك بنجاح',
         type: 'BOOKING_CONFIRMED',
-        booking_id: String(result.rows[0].id) 
+        booking_id: String(result.rows[0].id)
     },
     android: {
-        priority: 'high',
-        notification: {
-            channelId: 'high_importance_channel', // تأكد أن هذا مطابق لما في الموبايل
-            clickAction: 'FLUTTER_NOTIFICATION_CLICK'
-        }
+        priority: 'high'
     }
 };
-console.log("🔍 السيرفر بيحاول يبعت للتوكن ده:", fcm_token);
-    try {
-        await getMessaging().send(patientMessage);
-        console.log("✅ تم إرسال إشعار المريض بنجاح");
-    } catch (error) {
-        console.error("❌ فشل إرسال إشعار المريض:", error.message);
-    }
-} else {
-    console.log("⚠️ المريض لم يرسل fcm_token في الـ Body");
-}
+// أرسل هذا الـ Object فقط
 
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
         await sendBookingAlert({
