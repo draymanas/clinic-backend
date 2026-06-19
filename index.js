@@ -387,34 +387,25 @@ if (adminToken) {
     }
 }
 // إرسال إشعار للمريض باستخدام التوكن الذي وصل للتو
-// أضف هذا السطر في أول الدالة فوراً
-console.log("📦 البيانات التي استقبلها السيرفر من الموبايل هي:", JSON.stringify(req.body));
+// استخرج التوكن مباشرة من البيانات اللي السيرفر استلمها
+const { fcm_token, doctor_name } = req.body; 
 
-const { appointmentId } = req.body;
-console.log("🔍 محاولة إرسال إشعار للحجز رقم:", appointmentId); // ده عشان تتابع في اللوجز
+console.log("🔍 التوكن اللي وصلنا هو:", fcm_token);
 
-const { data: appointment } = await supabase
-    .from('appointments')
-    .select('fcm_token')
-    .eq('id', appointmentId)
-    .single();
-
-if (appointment && appointment.fcm_token) {
-    console.log("✅ وجدنا التوكن في القاعدة، جاري الإرسال...");
-
+if (fcm_token) {
     const message = {
         notification: {
             title: 'تأكيد الحجز',
-            body: 'تم تسجيل حجزك بنجاح'
+            body: `تم حجز موعدك بنجاح مع د. ${doctor_name}`
         },
-        token: appointment.fcm_token
+        token: fcm_token // استخدم التوكن اللي وصل فعلياً في الطلب
     };
 
     getMessaging().send(message)
-        .then(() => console.log("✅ تم إرسال الإشعار بنجاح!"))
+        .then(() => console.log("✅ تم إرسال الإشعار للتوكن المستلم بنجاح!"))
         .catch((err) => console.log("⚠️ فشل الإرسال:", err.message));
 } else {
-    console.log("❌ لم نجد توكن لهذا الحجز في قاعدة البيانات.");
+    console.log("❌ مفيش توكن وصل مع بيانات الحجز!");
 }
 
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
