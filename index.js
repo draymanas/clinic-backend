@@ -391,8 +391,8 @@ if (adminToken) {
 // في السيرفر: عند إرسال الإشعار للمريض
 const { data: appointments, error } = await supabase
     .from('appointments')
-    .select('fcm_token')
-    .eq('mobile', mobile)
+    .select('*')
+    .eq('mobile', mobile.trim()) // قمنا بإزالة أي مسافات زائدة
     .order('created_at', { ascending: false }) // رتب من الأحدث للأقدم
     .limit(1); // خذ أحدث توكن فقط
 
@@ -412,7 +412,7 @@ if (appointments && appointments.length > 0) {
                 sound: 'default'
             }
         },
-        token: appointment.fcm_token 
+        token: latestToken 
     };
 
     // 2. محاولة الإرسال
@@ -421,11 +421,11 @@ if (appointments && appointments.length > 0) {
             console.log("✅ تم إرسال إشعار المريض بنجاح، معرف الرسالة:", response);
         })
         .catch((err) => {
-            console.error("❌ فشل إرسال إشعار المريض للتوكن:", appointment.fcm_token);
+            console.error("❌ فشل إرسال إشعار المريض للتوكن:", latestToken);
             console.error("السبب:", err.message);
         });
 } else {
-    console.log("⚠️ لم يتم العثور على توكن للموبايل:", mobile);
+    console.log("❌ لا يوجد توكن لهذا الرقم في الجدول!", mobile);
 }
 
 
