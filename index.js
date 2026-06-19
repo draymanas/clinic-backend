@@ -401,12 +401,15 @@ if (fcm_token) {
             body: `تم حجز موعدك بنجاح مع د. ${doctor_name}`,
             doctor_name: doctor_name, // يمكنك إضافة بيانات إضافية هنا
             type: 'BOOKING_CONFIRMED'
+            },
+        // إضافة إعدادات أندرويد لضمان الفورية
+        android: {
+            priority: 'high', 
+            ttl: '0s' // طلب التوصيل الفوري وعدم التأجيل
         },
         token: fcm_token
     };
 
-    // 2. طباعة التوكن للتأكد في السجلات (Logs)
-    console.log("🚀 محاولة إرسال إشعار للمريض. التوكن:", fcm_token);
 
     // 3. محاولة الإرسال
     getMessaging().send(patientMessage)
