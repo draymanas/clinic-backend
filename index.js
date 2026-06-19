@@ -389,17 +389,16 @@ if (adminToken) {
 // إرسال إشعار للمريض باستخدام التوكن الذي وصل للتو
 // عدل كود السيرفر ليصبح بهذا الشكل
 // في السيرفر: عند إرسال الإشعار للمريض
-const { data: appointment } = await supabase
+const { data: appointments, error } = await supabase
     .from('appointments')
     .select('fcm_token')
-    .eq('mobile', mobile) 
-    .limit(1)
-    .single();
+    .eq('mobile', mobile)
+    .order('created_at', { ascending: false }) // رتب من الأحدث للأقدم
+    .limit(1); // خذ أحدث توكن فقط
 
-if (appointment && appointment.fcm_token) {
-    // 1. طباعة التوكن الذي سيتم الإرسال إليه في Render Logs
-    console.log("🔍 السيرفر سيقوم بإرسال الإشعار للتوكن التالي:");
-    console.log("TOKEN: ", appointment.fcm_token);
+if (appointments && appointments.length > 0) {
+    const latestToken = appointments[0].fcm_token;
+    console.log("✅ تم العثور على أحدث توكن لهذا الموبايل:", latestToken);
 
     const patientMessage = {
         notification: {
