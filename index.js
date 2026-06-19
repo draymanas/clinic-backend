@@ -387,37 +387,47 @@ if (adminToken) {
     }
 }
 // إرسال إشعار للمريض باستخدام التوكن الذي وصل للتو
-app.post('/send-notification', async (req, res) => {
-    // هذا الكود هو أول شيء سيتم تنفيذه عند وصول أي طلب
-    console.log("--- تم استلام طلب جديد للإشعارات ---");
-    console.log("الـ Body الواصل هو:", JSON.stringify(req.body));
+// عدل كود السيرفر ليصبح بهذا الشكل
+// في السيرفر: عند إرسال الإشعار للمريض
+const { data: appointments, error } = await supabase
+    .from('appointments')
+    .select('*')
+    .eq('mobile', mobile.trim()) // قمنا بإزالة أي مسافات زائدة
+    .order('created_at', { ascending: false }) // رتب من الأحدث للأقدم
+    .limit(1); // خذ أحدث توكن فقط
 
-    const { fcm_token } = req.body;
+if (appointments && appointments.length > 0) {
+    const latestToken = appointments[0].fcm_token;
+    console.log("✅ تم العثور على أحدث توكن لهذا الموبايل:", latestToken);
 
-    if (!fcm_token) {
-        console.log("❌ خطأ: الـ fcm_token غير موجود في البيانات.");
-        return res.status(400).send("No token provided");
-    }
-
-    console.log("✅ التوكن موجود، جاري الإرسال...");
-
-    const message = {
+    const patientMessage = {
         notification: {
             title: 'تأكيد الحجز',
-            body: 'تم حجز موعدك بنجاح'
+            body: `تم حجز موعدك بنجاح مع د. ${doctor_name}`
         },
-        token: fcm_token
+        android: {
+            priority: 'high',
+            notification: {
+                channelId: 'default', // لضمان ظهور التنبيه
+                sound: 'default'
+            }
+        },
+        token: latestToken 
     };
 
-    try {
-        await getMessaging().send(message);
-        console.log("✅ تم إرسال الإشعار بنجاح!");
-        res.status(200).send("Success");
-    } catch (error) {
-        console.log("⚠️ خطأ في الإرسال من Firebase:", error.message);
-        res.status(500).send("Error sending notification");
-    }
-});
+    // 2. محاولة الإرسال
+    getMessaging().send(patientMessage)
+        .then((response) => {
+            console.log("✅ تم إرسال إشعار المريض بنجاح، معرف الرسالة:", response);
+        })
+        .catch((err) => {
+            console.error("❌ فشل إرسال إشعار المريض للتوكن:", appointment.fcm_token);
+            console.error("السبب:", err.message);
+        });
+} else {
+    console.log("❌ لا يوجد توكن لهذا الرقم في الجدول!", mobile);
+}
+
 
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
         await sendBookingAlert({
