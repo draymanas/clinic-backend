@@ -388,38 +388,45 @@ if (adminToken) {
 }
 // إرسال إشعار للمريض باستخدام التوكن الذي وصل للتو
 // عدل كود السيرفر ليصبح بهذا الشكل
-if (fcm_token) {
-    // 1. تعريف محتوى الرسالة بشكل شامل لضمان التوافق مع أندرويد و Capacitor
+// في السيرفر: عند إرسال الإشعار للمريض
+const { data: appointment } = await supabase
+    .from('appointments')
+    .select('fcm_token')
+    .eq('mobile', patientMobile) 
+    .limit(1)
+    .single();
+
+if (appointment && appointment.fcm_token) {
+    // 1. طباعة التوكن الذي سيتم الإرسال إليه في Render Logs
+    console.log("🔍 السيرفر سيقوم بإرسال الإشعار للتوكن التالي:");
+    console.log("TOKEN: ", appointment.fcm_token);
+
     const patientMessage = {
         notification: {
             title: 'تأكيد الحجز',
             body: `تم حجز موعدك بنجاح مع د. ${doctor_name}`
         },
-        data: {
-            // إضافة حقل data يساعد في توصيل الإشعار في الخلفية
-            title: 'تأكيد الحجز',
-            body: `تم حجز موعدك بنجاح مع د. ${doctor_name}`,
-            doctor_name: doctor_name, // يمكنك إضافة بيانات إضافية هنا
-            type: 'BOOKING_CONFIRMED'
-            },
-        // إضافة إعدادات أندرويد لضمان الفورية
         android: {
-            priority: 'high', 
-            
+            priority: 'high',
+            notification: {
+                channelId: 'default', // لضمان ظهور التنبيه
+                sound: 'default'
+            }
         },
-        token: fcm_token
+        token: appointment.fcm_token 
     };
 
-
-    // 3. محاولة الإرسال
+    // 2. محاولة الإرسال
     getMessaging().send(patientMessage)
         .then((response) => {
             console.log("✅ تم إرسال إشعار المريض بنجاح، معرف الرسالة:", response);
         })
         .catch((err) => {
-            console.error("❌ فشل إرسال إشعار المريض:", err.message);
-            // إذا ظهر خطأ هنا مثل 'requested entity was not found'، فالـ token غير صحيح
+            console.error("❌ فشل إرسال إشعار المريض للتوكن:", appointment.fcm_token);
+            console.error("السبب:", err.message);
         });
+} else {
+    console.log("⚠️ لم يتم العثور على توكن للموبايل:", patientMobile);
 }
 
 
