@@ -387,51 +387,29 @@ if (adminToken) {
     }
 }
 // إرسال إشعار للمريض باستخدام التوكن الذي وصل للتو
-// في السيرفر: استقبال الـ ID من الطلب
-const { appointmentId, doctor_name } = req.body; 
+// استقبل الـ ID فقط من الموبايل
+const { appointmentId } = req.body; 
 
-console.log("🔍 السيرفر يحاول البحث عن توكن للحجز برقم ID:", appointmentId);
-
-// 1. البحث مباشرة عن الحجز باستخدام الـ ID الفريد
-const { data: appointment, error } = await supabase
+// 1. ابحث عن التوكن مباشرة
+const { data: appointment } = await supabase
     .from('appointments')
     .select('fcm_token')
-    .eq('id', appointmentId) // البحث المباشر بالـ ID
-    .single(); // نجلب هذا الحجز تحديداً
+    .eq('id', appointmentId)
+    .single();
 
-if (error) {
-    console.error("❌ خطأ أثناء البحث عن الحجز:", error.message);
-}
-
+// 2. إذا وجد التوكن، أرسل الإشعار (بدون أي شروط معقدة)
 if (appointment && appointment.fcm_token) {
-    console.log("✅ تم العثور على التوكن لهذا الحجز:", appointment.fcm_token);
-
-    const patientMessage = {
+    const message = {
         notification: {
             title: 'تأكيد الحجز',
-            body: `تم حجز موعدك بنجاح مع د. ${doctor_name}`
+            body: 'تم تسجيل حجزك بنجاح' // نص ثابت بسيط
         },
-        android: {
-            priority: 'high',
-            notification: {
-                channelId: 'default',
-                sound: 'default'
-            }
-        },
-        token: appointment.fcm_token 
+        token: appointment.fcm_token
     };
 
-    // 2. إرسال الإشعار
-    getMessaging().send(patientMessage)
-        .then((response) => {
-            console.log("✅ تم إرسال إشعار المريض بنجاح للحجز رقم:", appointmentId);
-        })
-        .catch((err) => {
-            console.error("❌ فشل إرسال إشعار المريض للتوكن:", appointment.fcm_token);
-            console.error("السبب:", err.message);
-        });
-} else {
-    console.log("❌ لا يوجد توكن مسجل لهذا الحجز رقم:", appointmentId);
+    getMessaging().send(message)
+        .then(() => console.log("✅ تم إرسال الإشعار"))
+        .catch((err) => console.log("⚠️ فشل الإرسال (لن يؤثر على الحجز)"));
 }
 
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
