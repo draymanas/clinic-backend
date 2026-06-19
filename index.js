@@ -393,18 +393,19 @@ if (fcm_token) {
             title: 'تأكيد الحجز',
             body: 'تم حجز موعدك بنجاح'
           },
-        android: {
-            priority: 'high', // إجبار الموبايل على عرض الإشعار
-            notification: {
-                channelId: 'default', // تأكد أن هذا الـ ID موجود في تطبيق الموبايل
-                clickAction: 'FLUTTER_NOTIFICATION_CLICK'
-            }
-        },
         data: {
-            type: 'booking_confirmation',
-            id: '1'
+        // هذه البيانات تجبر التطبيق على "الانتباه" للإشعار
+        type: 'BOOKING_CONFIRMED',
+        booking_id: String(result.rows[0].id) 
+    },
+    android: {
+        priority: 'high',
+        notification: {
+            channelId: 'high_importance_channel', // تأكد أن هذا مطابق لما في الموبايل
+            clickAction: 'FLUTTER_NOTIFICATION_CLICK'
         }
-    };
+    }
+};
 
     try {
         await getMessaging().send(patientMessage);
