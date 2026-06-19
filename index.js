@@ -392,7 +392,7 @@ if (adminToken) {
 const { data: appointment } = await supabase
     .from('appointments')
     .select('fcm_token')
-    .eq('mobile', patientMobile) 
+    .eq('mobile', mobile) 
     .limit(1)
     .single();
 
@@ -426,7 +426,7 @@ if (appointment && appointment.fcm_token) {
             console.error("السبب:", err.message);
         });
 } else {
-    console.log("⚠️ لم يتم العثور على توكن للموبايل:", patientMobile);
+    console.log("⚠️ لم يتم العثور على توكن للموبايل:", mobile);
 }
 
 
