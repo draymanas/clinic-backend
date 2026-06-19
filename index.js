@@ -388,34 +388,34 @@ if (adminToken) {
 }
 // إرسال إشعار للمريض باستخدام التوكن الذي وصل للتو
 app.post('/send-notification', async (req, res) => {
-    // 1. استلام البيانات
-    const bodyData = req.body;
+    // 1. استلام البيانات وطباعتها عشان تشوف إيه اللي واصل فعلاً
+    console.log("📦 البيانات المستلمة من الموبايل:", req.body);
     
-    // 2. طباعة للتأكد من وصول التوكن
-    console.log("البيانات المستلمة:", bodyData);
+    const { fcm_token } = req.body; 
 
-    // 3. التحقق من التوكن فقط
-    if (bodyData && bodyData.fcm_token) {
-        
+    // 2. التحقق من التوكن وطباعة النتيجة
+    if (fcm_token) {
+        console.log("🔍 التوكن موجود، جاري تجهيز الرسالة...");
+
         const message = {
             notification: {
                 title: 'تأكيد الحجز',
-                body: 'تم حجز موعدك بنجاح' // رسالة عامة بدون اسم دكتور
+                body: 'تم حجز موعدك بنجاح'
             },
-            token: bodyData.fcm_token
+            token: fcm_token
         };
 
         try {
             await getMessaging().send(message);
-            console.log("✅ الإشعار وصل بنجاح");
+            console.log("✅ الإشعار وصل بنجاح للتوكن:", fcm_token);
             res.status(200).send("تم الإرسال");
         } catch (err) {
             console.log("⚠️ فشل الإرسال:", err.message);
             res.status(500).send("خطأ في الإرسال");
         }
     } else {
-        console.log("❌ لا يوجد توكن في الطلب");
-        res.status(400).send("بيانات غير كاملة");
+        console.log("❌ خطأ: لم يتم العثور على التوكن في البيانات المرسلة.");
+        res.status(400).send("لا يوجد توكن");
     }
 });
 
