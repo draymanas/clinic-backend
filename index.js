@@ -387,26 +387,37 @@ if (adminToken) {
     }
 }
 // إرسال إشعار للمريض باستخدام التوكن الذي وصل للتو
-// استخرج التوكن مباشرة من البيانات اللي السيرفر استلمها
-const { fcm_token, doctor_name } = req.body; 
+app.post('/send-notification', async (req, res) => {
+    // 1. استلام البيانات
+    const bodyData = req.body;
+    
+    // 2. طباعة للتأكد من وصول التوكن
+    console.log("البيانات المستلمة:", bodyData);
 
-console.log("🔍 التوكن اللي وصلنا هو:", fcm_token);
+    // 3. التحقق من التوكن فقط
+    if (bodyData && bodyData.fcm_token) {
+        
+        const message = {
+            notification: {
+                title: 'تأكيد الحجز',
+                body: 'تم حجز موعدك بنجاح' // رسالة عامة بدون اسم دكتور
+            },
+            token: bodyData.fcm_token
+        };
 
-if (fcm_token) {
-    const message = {
-        notification: {
-            title: 'تأكيد الحجز',
-            body: `تم حجز موعدك بنجاح مع د. ${doctor_name}`
-        },
-        token: fcm_token // استخدم التوكن اللي وصل فعلياً في الطلب
-    };
-
-    getMessaging().send(message)
-        .then(() => console.log("✅ تم إرسال الإشعار للتوكن المستلم بنجاح!"))
-        .catch((err) => console.log("⚠️ فشل الإرسال:", err.message));
-} else {
-    console.log("❌ مفيش توكن وصل مع بيانات الحجز!");
-}
+        try {
+            await getMessaging().send(message);
+            console.log("✅ الإشعار وصل بنجاح");
+            res.status(200).send("تم الإرسال");
+        } catch (err) {
+            console.log("⚠️ فشل الإرسال:", err.message);
+            res.status(500).send("خطأ في الإرسال");
+        }
+    } else {
+        console.log("❌ لا يوجد توكن في الطلب");
+        res.status(400).send("بيانات غير كاملة");
+    }
+});
 
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
         await sendBookingAlert({
