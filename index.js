@@ -386,48 +386,34 @@ if (adminToken) {
         console.error("❌ فشل إرسال إشعار الأدمن:", error.message);
     }
 }
-// إرسال إشعار للمريض باستخدام التوكن الذي وصل للتو
-// عدل كود السيرفر ليصبح بهذا الشكل
-// في السيرفر: عند إرسال الإشعار للمريض
-const { data: appointments, error } = await supabase
-    .from('appointments')
-    .select('*')
-    .eq('mobile', mobile.trim()) // قمنا بإزالة أي مسافات زائدة
-    .order('created_at', { ascending: false }) // رتب من الأحدث للأقدم
-    .limit(1); // خذ أحدث توكن فقط
+app.post('/send-notification', async (req, res) => {
+    // الموبايل هيبعت: fcm_token و id و أي بيانات تانية
+    const { fcm_token, id, patient_name } = req.body; 
 
-if (appointments && appointments.length > 0) {
-    const latestToken = appointments[0].fcm_token;
-    console.log("✅ تم العثور على أحدث توكن لهذا الموبايل:", latestToken);
+    console.log("🔥 استلمت بيانات الحجز رقم:", id, "للمريض:", patient_name);
+    console.log("📌 التوكن اللي واصل هو:", fcm_token);
 
-    const patientMessage = {
+    if (!fcm_token) {
+        return res.status(400).send("❌ خطأ: مفيش توكن واصل في الطلب ده!");
+    }
+
+    const message = {
         notification: {
             title: 'تأكيد الحجز',
-            body: `تم حجز موعدك بنجاح مع د. ${doctor_name}`
+            body: `تم حجز موعدك يا ${patient_name || 'مريضنا'}`
         },
-        android: {
-            priority: 'high',
-            notification: {
-                channelId: 'default', // لضمان ظهور التنبيه
-                sound: 'default'
-            }
-        },
-        token: latestToken 
+        token: fcm_token
     };
 
-    // 2. محاولة الإرسال
-    getMessaging().send(patientMessage)
-        .then((response) => {
-            console.log("✅ تم إرسال إشعار المريض بنجاح، معرف الرسالة:", response);
-        })
-        .catch((err) => {
-            console.error("❌ فشل إرسال إشعار المريض للتوكن:", appointment.fcm_token);
-            console.error("السبب:", err.message);
-        });
-} else {
-    console.log("❌ لا يوجد توكن لهذا الرقم في الجدول!", mobile);
-}
-
+    try {
+        await getMessaging().send(message);
+        console.log("✅ تم إرسال إشعار المريض صاحب الـ ID رقم:", id);
+        res.status(200).send("Success");
+    } catch (err) {
+        console.log("⚠️ فشل الإرسال:", err.message);
+        res.status(500).send("Error");
+    }
+});
 
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
         await sendBookingAlert({
