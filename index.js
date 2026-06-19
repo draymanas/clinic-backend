@@ -419,20 +419,13 @@ app.post('/send-notification', async (req, res) => {
     // الموبايل هيبعت: fcm_token و id و أي بيانات تانية
     const { fcm_token, id, patient_name } = req.body; 
 
-    console.log("🔥 استلمت بيانات الحجز رقم:", id, "للمريض:", patient_name);
-    console.log("📌 التوكن اللي واصل هو:", fcm_token);
+    
 
     if (!fcm_token) {
         return res.status(400).send("❌ خطأ: مفيش توكن واصل في الطلب ده!");
     }
 
-    const message = {
-        notification: {
-            title: 'تأكيد الحجز',
-            body: `تم حجز موعدك يا ${patient_name || 'مريضنا'}`
-        },
-        token: fcm_token
-    };
+    
 
     try {
         await getMessaging().send(message);
