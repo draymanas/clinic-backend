@@ -415,27 +415,6 @@ if (fcm_token) {
 } else {
     console.log("⚠️ المريض لم يرسل fcm_token في الـ Body");
 }
-app.post('/send-notification', async (req, res) => {
-    // الموبايل هيبعت: fcm_token و id و أي بيانات تانية
-    const { fcm_token, id, patient_name } = req.body; 
-
-    
-
-    if (!fcm_token) {
-        return res.status(400).send("❌ خطأ: مفيش توكن واصل في الطلب ده!");
-    }
-
-    
-
-    try {
-        await getMessaging().send(message);
-        console.log("✅ تم إرسال إشعار المريض صاحب الـ ID رقم:", id);
-        res.status(200).send("Success");
-    } catch (err) {
-        console.log("⚠️ فشل الإرسال:", err.message);
-        res.status(500).send("Error");
-    }
-});
 
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
         await sendBookingAlert({
