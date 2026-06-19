@@ -406,7 +406,7 @@ if (fcm_token) {
         }
     }
 };
-
+console.log("🔍 السيرفر بيحاول يبعت للتوكن ده:", fcm_token);
     try {
         await getMessaging().send(patientMessage);
         console.log("✅ تم إرسال إشعار المريض بنجاح");
