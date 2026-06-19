@@ -385,15 +385,24 @@ if (adminToken) {
     } catch (error) {
         console.error("❌ فشل إرسال إشعار الأدمن:", error.message);
     }
+}
 if (fcm_token) {
     const patientMessage = {
-        token: fcm_token, // <--- ده السطر اللي بيحدد العنوان!
+        token: fcm_token,
         notification: {
             title: 'تأكيد الحجز',
             body: 'تم حجز موعدك بنجاح'
-        },
+          },
         android: {
-            priority: 'high' // عشان يظهر على الشاشة
+            priority: 'high', // إجبار الموبايل على عرض الإشعار
+            notification: {
+                channelId: 'default', // تأكد أن هذا الـ ID موجود في تطبيق الموبايل
+                clickAction: 'FLUTTER_NOTIFICATION_CLICK'
+            }
+        },
+        data: {
+            type: 'booking_confirmation',
+            id: '1'
         }
     };
 
