@@ -388,34 +388,34 @@ if (adminToken) {
 }
 // إرسال إشعار للمريض باستخدام التوكن الذي وصل للتو
 app.post('/send-notification', async (req, res) => {
-    // 1. استلام البيانات وطباعتها عشان تشوف إيه اللي واصل فعلاً
-    console.log("📦 البيانات المستلمة من الموبايل:", req.body);
-    
-    const { fcm_token } = req.body; 
+    // هذا الكود هو أول شيء سيتم تنفيذه عند وصول أي طلب
+    console.log("--- تم استلام طلب جديد للإشعارات ---");
+    console.log("الـ Body الواصل هو:", JSON.stringify(req.body));
 
-    // 2. التحقق من التوكن وطباعة النتيجة
-    if (fcm_token) {
-        console.log("🔍 التوكن موجود، جاري تجهيز الرسالة...");
+    const { fcm_token } = req.body;
 
-        const message = {
-            notification: {
-                title: 'تأكيد الحجز',
-                body: 'تم حجز موعدك بنجاح'
-            },
-            token: fcm_token
-        };
+    if (!fcm_token) {
+        console.log("❌ خطأ: الـ fcm_token غير موجود في البيانات.");
+        return res.status(400).send("No token provided");
+    }
 
-        try {
-            await getMessaging().send(message);
-            console.log("✅ الإشعار وصل بنجاح للتوكن:", fcm_token);
-            res.status(200).send("تم الإرسال");
-        } catch (err) {
-            console.log("⚠️ فشل الإرسال:", err.message);
-            res.status(500).send("خطأ في الإرسال");
-        }
-    } else {
-        console.log("❌ خطأ: لم يتم العثور على التوكن في البيانات المرسلة.");
-        res.status(400).send("لا يوجد توكن");
+    console.log("✅ التوكن موجود، جاري الإرسال...");
+
+    const message = {
+        notification: {
+            title: 'تأكيد الحجز',
+            body: 'تم حجز موعدك بنجاح'
+        },
+        token: fcm_token
+    };
+
+    try {
+        await getMessaging().send(message);
+        console.log("✅ تم إرسال الإشعار بنجاح!");
+        res.status(200).send("Success");
+    } catch (error) {
+        console.log("⚠️ خطأ في الإرسال من Firebase:", error.message);
+        res.status(500).send("Error sending notification");
     }
 });
 
