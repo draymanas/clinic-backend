@@ -630,6 +630,40 @@ app.put('/api/admin/consultations/:id', async (req, res) => {
     }
 });
 
+// أضف هذا المسار الجديد في ملف index.js
+app.post('/talkjs-webhook', async (req, res) => {
+    const event = req.body;
+
+    // التأكد أن هذا الحدث هو "رسالة جديدة"
+    if (event.type === 'message.sent') {
+        const message = event.message.text;
+        const senderName = event.sender.name;
+        const receiverId = event.receiver.id; // هذا هو الـ ID الخاص بالطبيب
+
+        // جلب الـ FCM Token الخاص بالطبيب من قاعدة البيانات
+        const doctorRes = await pool.query('SELECT fcm_token FROM doctors WHERE id = $1', [receiverId]);
+        const fcmToken = doctorRes.rows[0]?.fcm_token;
+
+        if (fcmToken) {
+            const notification = {
+                token: fcmToken,
+                notification: {
+                    title: `رسالة جديدة من ${senderName}`,
+                    body: message
+                }
+            };
+
+            try {
+                await getMessaging().send(notification);
+                console.log("✅ تم إرسال إشعار رسالة TalkJS بنجاح");
+            } catch (err) {
+                console.error("❌ فشل إرسال إشعار TalkJS:", err);
+            }
+        }
+    }
+    res.status(200).send('OK');
+});
+
 app.listen(PORT, () => {
     console.log(`
     🚀 ==========================================
