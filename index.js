@@ -629,39 +629,25 @@ app.put('/api/admin/consultations/:id', async (req, res) => {
         res.status(500).json({ error: "فشل تحديث الاستشارة", details: err.message });
     }
 });
-
-// أضف هذا المسار الجديد في ملف index.js
 app.post('/talkjs-webhook', async (req, res) => {
     const event = req.body;
     
-    // فحص أمان: التأكد من أن الحدث يحتوي على رسالة
-    if (event && event.type === 'message.sent' && event.message && event.message.text) {
-        const messageText = event.message.text;
-        const senderName = event.sender ? event.sender.name : 'مستخدم';
-        const receiverId = event.receiver ? event.receiver.id : null;
+    // كاشف الأخطاء: طباعة نوع الحدث بالتفصيل
+    console.log("📥 استقبلت حدث نوعه:", event?.type);
+    console.log("📥 محتوى الحدث الكامل:", JSON.stringify(event, null, 2));
 
-        if (receiverId) {
-            try {
-                const doctorRes = await pool.query('SELECT fcm_token FROM doctors WHERE id = $1', [receiverId]);
-                const fcmToken = doctorRes.rows[0]?.fcm_token;
+    // تعديل الشرط ليكون أكثر شمولاً
+    if (event?.type === 'message.sent' && event?.data?.message) {
+        // غالباً TalkJS يضع الرسالة داخل event.data
+        const messageObj = event.data.message; 
+        const messageText = messageObj.text;
+        const sender = event.data.sender;
+        const receiver = event.data.conversation; // أو مكان معرف الطبيب
 
-                if (fcmToken) {
-                    const message = {
-                        notification: {
-                            title: `رسالة جديدة من ${senderName}`,
-                            body: messageText
-                        },
-                        token: fcmToken
-                    };
-                    await getMessaging().send(message);
-                    console.log("✅ تم إرسال إشعار الرسالة بنجاح");
-                }
-            } catch (err) {
-                console.error("❌ خطأ أثناء معالجة الإشعار:", err);
-            }
-        }
+        console.log("✅ وجدت رسالة:", messageText);
+        // ... (باقي كود الإرسال لـ Firebase)
     } else {
-        console.log("ℹ️ حدث غير مدعوم أو لا يحتوي على نص رسالة، تم تجاهله.");
+        console.log("⚠️ تم تجاهل الحدث لأنه لا يطابق شروطنا. نوعه:", event?.type);
     }
     
     res.status(200).send('OK');
