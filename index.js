@@ -629,47 +629,41 @@ app.put('/api/admin/consultations/:id', async (req, res) => {
         res.status(500).json({ error: "فشل تحديث الاستشارة", details: err.message });
     }
 });
+
+
 app.post('/talkjs-webhook', async (req, res) => {
     const event = req.body;
+    const sender = event.data.sender;
+    const participants = event.data.conversation.participants;
+    const participantIds = Object.keys(participants);
+    const receiverId = participantIds.find(id => id !== sender.id);
 
-    if (event?.type === 'message.sent' && event?.data?.message) {
-        const sender = event.data.sender;
-        const participants = event.data.conversation.participants;
-        const participantIds = Object.keys(participants);
-        const receiverId = participantIds.find(id => id !== sender.id);
+    console.log(`🔎 تفاصيل الحدث: المرسل=${sender.id}, المستقبل=${receiverId}`);
 
-        if (receiverId) {
-            try {
-                let fcmToken = null;
-
-                // 1. البحث في جدول الأطباء (باعتبار الـ receiverId هو الـ id الخاص بالطبيب)
-                const doctorRes = await pool.query('SELECT fcm_token FROM doctors WHERE id = $1', [receiverId]);
-                fcmToken = doctorRes.rows[0]?.fcm_token;
-
-                // 2. إذا لم نجد الطبيب، نبحث في جدول المواعيد بناءً على الـ mobile
-                if (!fcmToken) {
-                    // هنا نفترض أن الـ id المخزن في TalkJS للمريض هو نفسه رقم هاتفه (mobile) 
-                    // أو يمكنك تعديل الاستعلام للبحث بالهاتف إذا كان التخزين يتم بشكل مختلف
-                    const userRes = await pool.query('SELECT fcm_token FROM appointments WHERE mobile = $1 AND fcm_token IS NOT NULL LIMIT 1', [receiverId]);
-                    fcmToken = userRes.rows[0]?.fcm_token;
-                }
-
-                if (fcmToken) {
-                    const message = {
-                        notification: {
-                            title: `رسالة جديدة من ${sender.name}`,
-                            body: event.data.message.text
-                        },
-                        token: fcmToken
-                    };
-                    await getMessaging().send(message);
-                    console.log(`✅ تم إرسال إشعار للـ ID/Mobile ${receiverId}`);
-                }
-            } catch (err) {
-                console.error("❌ خطأ:", err);
+    try {
+        // 1. محاولة البحث كطبيب
+        const docRes = await pool.query('SELECT fcm_token FROM doctors WHERE id = $1', [receiverId]);
+        
+        if (docRes.rows.length > 0) {
+            console.log("✅ المستقبل هو طبيب، جاري الإرسال...");
+            await getMessaging().send({ notification: { title: "رسالة جديدة", body: event.data.message.text }, token: docRes.rows[0].fcm_token });
+        } 
+        // 2. محاولة البحث كمريض
+        else {
+            console.log(`🔍 المستقبل ليس طبيب (ID: ${receiverId})، جاري البحث في المواعيد...`);
+            const userRes = await pool.query('SELECT fcm_token FROM appointments WHERE id = $1', [receiverId]);
+            
+            if (userRes.rows.length > 0) {
+                console.log("✅ المستقبل مريض، جاري الإرسال...");
+                await getMessaging().send({ notification: { title: "رسالة جديدة", body: event.data.message.text }, token: userRes.rows[0].fcm_token });
+            } else {
+                console.log("❌ لم يتم العثور على المستقبل لا في الأطباء ولا في المواعيد!");
             }
         }
+    } catch (err) {
+        console.error("❌ خطأ في الإرسال:", err);
     }
+
     res.status(200).send('OK');
 });
 app.listen(PORT, () => {
