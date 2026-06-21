@@ -631,25 +631,37 @@ app.put('/api/admin/consultations/:id', async (req, res) => {
 });
 app.post('/talkjs-webhook', async (req, res) => {
     const event = req.body;
-    
-    // كاشف الأخطاء: طباعة نوع الحدث بالتفصيل
-    console.log("📥 استقبلت حدث نوعه:", event?.type);
-    console.log("📥 محتوى الحدث الكامل:", JSON.stringify(event, null, 2));
 
-    // تعديل الشرط ليكون أكثر شمولاً
     if (event?.type === 'message.sent' && event?.data?.message) {
-        // غالباً TalkJS يضع الرسالة داخل event.data
-        const messageObj = event.data.message; 
-        const messageText = messageObj.text;
+        const messageData = event.data.message;
         const sender = event.data.sender;
-        const receiver = event.data.conversation; // أو مكان معرف الطبيب
+        const participants = event.data.conversation.participants;
+        
+        // معرفة من هو الطرف الآخر (الطبيب) وليس المرسل
+        const participantIds = Object.keys(participants);
+        const receiverId = participantIds.find(id => id !== sender.id);
 
-        console.log("✅ وجدت رسالة:", messageText);
-        // ... (باقي كود الإرسال لـ Firebase)
-    } else {
-        console.log("⚠️ تم تجاهل الحدث لأنه لا يطابق شروطنا. نوعه:", event?.type);
+        if (receiverId) {
+            try {
+                const doctorRes = await pool.query('SELECT fcm_token FROM doctors WHERE id = $1', [receiverId]);
+                const fcmToken = doctorRes.rows[0]?.fcm_token;
+
+                if (fcmToken) {
+                    const message = {
+                        notification: {
+                            title: `رسالة جديدة من ${sender.name}`,
+                            body: messageData.text
+                        },
+                        token: fcmToken
+                    };
+                    await getMessaging().send(message);
+                    console.log(`✅ تم إرسال إشعار للطبيب ${receiverId} بنجاح`);
+                }
+            } catch (err) {
+                console.error("❌ خطأ أثناء إرسال الإشعار:", err);
+            }
+        }
     }
-    
     res.status(200).send('OK');
 });
 app.listen(PORT, () => {
