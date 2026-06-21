@@ -633,8 +633,7 @@ app.put('/api/admin/consultations/:id', async (req, res) => {
 // أضف هذا المسار الجديد في ملف index.js
 app.post('/talkjs-webhook', async (req, res) => {
     const event = req.body;
-    console.log("📥 وصول حدث جديد من TalkJS:", JSON.stringify(event, null, 2));
-
+    
     // فحص أمان: التأكد من أن الحدث يحتوي على رسالة
     if (event && event.type === 'message.sent' && event.message && event.message.text) {
         const messageText = event.message.text;
