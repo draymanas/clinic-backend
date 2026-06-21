@@ -630,7 +630,6 @@ app.put('/api/admin/consultations/:id', async (req, res) => {
     }
 });
 
-
 app.post('/talkjs-webhook', async (req, res) => {
     const event = req.body;
     const sender = event.data.sender;
@@ -646,18 +645,23 @@ app.post('/talkjs-webhook', async (req, res) => {
         
         if (docRes.rows.length > 0) {
             console.log("✅ المستقبل هو طبيب، جاري الإرسال...");
-            await getMessaging().send({ notification: { title: "رسالة جديدة", body: event.data.message.text }, token: docRes.rows[0].fcm_token });
-        } 
-        // 2. محاولة البحث كمريض
-        else {
-            console.log(`🔍 المستقبل ليس طبيب (ID: ${receiverId})، جاري البحث في المواعيد...`);
-            const userRes = await pool.query('SELECT fcm_token FROM appointments WHERE id = $1', [receiverId]);
+            await getMessaging().send({ 
+                notification: { title: "رسالة جديدة", body: event.data.message.text }, 
+                token: docRes.rows[0].fcm_token 
+            });
+        } else {
+            // 2. البحث كمريض باستخدام mobile
+            console.log(`🔍 المستقبل ليس طبيب (ID: ${receiverId})، جاري البحث في المواعيد باستخدام الموبايل...`);
+            const userRes = await pool.query('SELECT fcm_token FROM appointments WHERE mobile = $1 AND fcm_token IS NOT NULL LIMIT 1', [receiverId]);
             
             if (userRes.rows.length > 0) {
                 console.log("✅ المستقبل مريض، جاري الإرسال...");
-                await getMessaging().send({ notification: { title: "رسالة جديدة", body: event.data.message.text }, token: userRes.rows[0].fcm_token });
+                await getMessaging().send({ 
+                    notification: { title: "رسالة جديدة", body: event.data.message.text }, 
+                    token: userRes.rows[0].fcm_token 
+                });
             } else {
-                console.log("❌ لم يتم العثور على المستقبل لا في الأطباء ولا في المواعيد!");
+                console.log("❌ لم يتم العثور على المستقبل في الأطباء ولا في المواعيد برقم الموبايل!");
             }
         }
     } catch (err) {
@@ -666,6 +670,7 @@ app.post('/talkjs-webhook', async (req, res) => {
 
     res.status(200).send('OK');
 });
+
 app.listen(PORT, () => {
     console.log(`
     🚀 ==========================================
