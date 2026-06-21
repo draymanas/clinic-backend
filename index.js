@@ -633,32 +633,40 @@ app.post('/talkjs-webhook', async (req, res) => {
     const event = req.body;
 
     if (event?.type === 'message.sent' && event?.data?.message) {
-        const messageData = event.data.message;
         const sender = event.data.sender;
         const participants = event.data.conversation.participants;
-        
-        // معرفة من هو الطرف الآخر (الطبيب) وليس المرسل
         const participantIds = Object.keys(participants);
         const receiverId = participantIds.find(id => id !== sender.id);
 
         if (receiverId) {
             try {
+                let fcmToken = null;
+
+                // 1. البحث في جدول الأطباء (باعتبار الـ receiverId هو الـ id الخاص بالطبيب)
                 const doctorRes = await pool.query('SELECT fcm_token FROM doctors WHERE id = $1', [receiverId]);
-                const fcmToken = doctorRes.rows[0]?.fcm_token;
+                fcmToken = doctorRes.rows[0]?.fcm_token;
+
+                // 2. إذا لم نجد الطبيب، نبحث في جدول المواعيد بناءً على الـ mobile
+                if (!fcmToken) {
+                    // هنا نفترض أن الـ id المخزن في TalkJS للمريض هو نفسه رقم هاتفه (mobile) 
+                    // أو يمكنك تعديل الاستعلام للبحث بالهاتف إذا كان التخزين يتم بشكل مختلف
+                    const userRes = await pool.query('SELECT fcm_token FROM appointments WHERE mobile = $1 AND fcm_token IS NOT NULL LIMIT 1', [receiverId]);
+                    fcmToken = userRes.rows[0]?.fcm_token;
+                }
 
                 if (fcmToken) {
                     const message = {
                         notification: {
                             title: `رسالة جديدة من ${sender.name}`,
-                            body: messageData.text
+                            body: event.data.message.text
                         },
                         token: fcmToken
                     };
                     await getMessaging().send(message);
-                    console.log(`✅ تم إرسال إشعار للطبيب ${receiverId} بنجاح`);
+                    console.log(`✅ تم إرسال إشعار للـ ID/Mobile ${receiverId}`);
                 }
             } catch (err) {
-                console.error("❌ خطأ أثناء إرسال الإشعار:", err);
+                console.error("❌ خطأ:", err);
             }
         }
     }
