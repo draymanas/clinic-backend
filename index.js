@@ -633,37 +633,39 @@ app.put('/api/admin/consultations/:id', async (req, res) => {
 // أضف هذا المسار الجديد في ملف index.js
 app.post('/talkjs-webhook', async (req, res) => {
     const event = req.body;
+    
+    // فحص أمان: التأكد من أن الحدث يحتوي على رسالة
+    if (event && event.type === 'message.sent' && event.message && event.message.text) {
+        const messageText = event.message.text;
+        const senderName = event.sender ? event.sender.name : 'مستخدم';
+        const receiverId = event.receiver ? event.receiver.id : null;
 
-    // التأكد أن هذا الحدث هو "رسالة جديدة"
-    if (event.type === 'message.sent') {
-        const message = event.message.text;
-        const senderName = event.sender.name;
-        const receiverId = event.receiver.id; // هذا هو الـ ID الخاص بالطبيب
-
-        // جلب الـ FCM Token الخاص بالطبيب من قاعدة البيانات
-        const doctorRes = await pool.query('SELECT fcm_token FROM doctors WHERE id = $1', [receiverId]);
-        const fcmToken = doctorRes.rows[0]?.fcm_token;
-
-        if (fcmToken) {
-            const notification = {
-                token: fcmToken,
-                notification: {
-                    title: `رسالة جديدة من ${senderName}`,
-                    body: message
-                }
-            };
-
+        if (receiverId) {
             try {
-                await getMessaging().send(notification);
-                console.log("✅ تم إرسال إشعار رسالة TalkJS بنجاح");
+                const doctorRes = await pool.query('SELECT fcm_token FROM doctors WHERE id = $1', [receiverId]);
+                const fcmToken = doctorRes.rows[0]?.fcm_token;
+
+                if (fcmToken) {
+                    const message = {
+                        notification: {
+                            title: `رسالة جديدة من ${senderName}`,
+                            body: messageText
+                        },
+                        token: fcmToken
+                    };
+                    await getMessaging().send(message);
+                    console.log("✅ تم إرسال إشعار الرسالة بنجاح");
+                }
             } catch (err) {
-                console.error("❌ فشل إرسال إشعار TalkJS:", err);
+                console.error("❌ خطأ أثناء معالجة الإشعار:", err);
             }
         }
+    } else {
+        console.log("ℹ️ حدث غير مدعوم أو لا يحتوي على نص رسالة، تم تجاهله.");
     }
+    
     res.status(200).send('OK');
 });
-
 app.listen(PORT, () => {
     console.log(`
     🚀 ==========================================
