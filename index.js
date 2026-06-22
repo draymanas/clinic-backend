@@ -496,15 +496,20 @@ app.post('/api/save-token', async (req, res) => {
 app.post('/api/save-patient-token', async (req, res) => {
     const { mobile, fcmToken } = req.body;
     try {
-        // تحديث جدول المرضى مباشرة (سواء كان المريض موجوداً أم لا)
-        // إذا كنت تريد التأكد من وجوده أولاً، يمكنك استخدام UPSERT (تحديث أو إدخال)
-        await pool.query(
+        // تم التصحيح: استخدمنا اسم العمود 'mobile' الموجود في صورتك
+        const result = await pool.query(
             'UPDATE patients SET fcm_token = $1 WHERE mobile = $2',
             [fcmToken, mobile]
         );
-        res.status(200).json({ message: "تم تحديث التوكن في جدول المرضى" });
+        
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: "المريض غير موجود بهذا الرقم" });
+        }
+        
+        res.status(200).json({ message: "تم تحديث التوكن بنجاح" });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("خطأ في حفظ التوكن:", err);
+        res.status(500).json({ error: "فشل حفظ التوكن" });
     }
 });
 
