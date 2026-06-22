@@ -493,6 +493,26 @@ app.post('/api/save-token', async (req, res) => {
     }
 });
 
+app.post('/api/save-patient-token', async (req, res) => {
+    const { mobile, fcmToken } = req.body;
+    try {
+        // تأكد من أن اسم الجدول هو 'patients' واسم العمود هو 'fcm_token'
+        const result = await pool.query(
+            'UPDATE patients SET fcm_token = $1 WHERE mobile = $2',
+            [fcmToken, mobile]
+        );
+        
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: "المريض غير موجود" });
+        }
+        
+        res.status(200).json({ message: "تم تحديث توكن المريض بنجاح" });
+    } catch (err) {
+        console.error("خطأ في حفظ توكن المريض:", err);
+        res.status(500).json({ error: "فشل حفظ توكن المريض" });
+    }
+});
+
 app.patch('/update-appointment/:id', async (req, res) => {
     try {
         const { status } = req.body;
