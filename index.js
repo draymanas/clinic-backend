@@ -20,8 +20,6 @@ const { initializeApp, cert } = require('firebase-admin/app');
 const { getMessaging } = require('firebase-admin/messaging');
 const serviceAccount = require('./serviceAccountKey.json');
 
-const serviceAccount = require('./path/to/your-service-account-file.json'); // تأكد من مسار ملف الـ JSON
-
 // الطريقة الصحيحة للتهيئة
 if (!admin.apps.length) {
     admin.initializeApp({
