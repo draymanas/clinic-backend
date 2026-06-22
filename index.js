@@ -340,6 +340,7 @@ async function sendBookingNotification(mobile) {
 
         if (patientRes.rows.length > 0) {
             const fcm_token = patientRes.rows[0].fcm_token;
+            console.log("🚀 التوكن المرسل للمريض هو:", fcm_token);
             await getMessaging().send({
                 token: fcm_token,
                 notification: { title: 'تأكيد الحجز', body: 'تم حجز موعدك بنجاح' },
