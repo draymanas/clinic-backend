@@ -23,12 +23,16 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // تهيئة Firebase Admin
 const serviceAccount = require('./serviceAccountKey.json');
 
-if (!admin.apps.length) {
+// تأكد أن هذا السطر في أعلى الملف
+const admin = require('firebase-admin');
+
+// تعديل التهيئة لتكون أكثر قوة
+if (!admin.apps || admin.apps.length === 0) {
+    const serviceAccount = require('./serviceAccountKey.json');
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
     });
 }
-
 // تعريف messaging
 const messaging = admin.messaging();
 console.log("✅ Firebase Admin initialized successfully!");
