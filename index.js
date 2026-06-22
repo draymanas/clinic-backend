@@ -778,7 +778,7 @@ const patientRes = await pool.query('SELECT fcm_token FROM patients WHERE mobile
 
 // ⏰ ٢. نظام التذكير التلقائي اليومي بجدول المواعيد (الساعة 10:00 صباحاً بتوقيت مصر)
 // ==========================================================
-const cron = require('node-cron');
+
 
 // تشغيل يومي في تمام الساعة 10:00 صباحاً بتوقيت أم الدنيا (القاهرة)
 cron.schedule('0 10 * * *', async () => {
