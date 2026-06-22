@@ -496,20 +496,15 @@ app.post('/api/save-token', async (req, res) => {
 app.post('/api/save-patient-token', async (req, res) => {
     const { mobile, fcmToken } = req.body;
     try {
-        // تحديث جدول المواعيد باستخدام رقم الموبايل
-        const result = await pool.query(
-            'UPDATE appointments SET fcm_token = $1 WHERE mobile = $2',
+        // تحديث جدول المرضى مباشرة (سواء كان المريض موجوداً أم لا)
+        // إذا كنت تريد التأكد من وجوده أولاً، يمكنك استخدام UPSERT (تحديث أو إدخال)
+        await pool.query(
+            'UPDATE patients SET fcm_token = $1 WHERE mobile = $2',
             [fcmToken, mobile]
         );
-        
-        if (result.rowCount === 0) {
-            return res.status(404).json({ error: "لم يتم العثور على حجز لهذا الموبايل" });
-        }
-        
-        res.status(200).json({ message: "تم التحديث بنجاح" });
+        res.status(200).json({ message: "تم تحديث التوكن في جدول المرضى" });
     } catch (err) {
-        console.error("خطأ:", err);
-        res.status(500).json({ error: "فشل التحديث" });
+        res.status(500).json({ error: err.message });
     }
 });
 
