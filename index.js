@@ -329,6 +329,37 @@ app.get('/doctor-direct/:id', async (req, res) => {
         console.error("❌ خطأ داخلي:", err);
         res.status(500).json({ error: "Internal Server Error" });
     }
+
+// 1. أولاً، احصل على التوكن من الجدول بناءً على موبايل المريض
+// دالة إرسال إشعار حجز موحد
+async function sendBookingNotification(mobile) {
+    try {
+        const patientRes = await pool.query(
+            'SELECT fcm_token FROM patients WHERE mobile = $1 AND fcm_token IS NOT NULL LIMIT 1', 
+            [mobile]
+        );
+
+        if (patientRes.rows.length > 0) {
+            const fcm_token = patientRes.rows[0].fcm_token;
+            await getMessaging().send({
+                token: fcm_token,
+                notification: { title: 'تأكيد الحجز', body: 'تم حجز موعدك بنجاح' },
+                data: { type: 'BOOKING_CONFIRMED' },
+                android: {
+                    priority: 'high',
+                    notification: {
+                        channelId: 'high_importance_channel',
+                        clickAction: 'FLUTTER_NOTIFICATION_CLICK'
+                    }
+                }
+            });
+            console.log("✅ تم إرسال إشعار الحجز بنجاح للمريض");
+        }
+    } catch (error) {
+        console.error("❌ فشل إرسال إشعار المريض:", error.message);
+    }
+}
+
 });app.post('/book-appointment', async (req, res) => {
     const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price, fcm_token } = req.body;
 
@@ -391,35 +422,7 @@ if (adminToken) {
         console.error("❌ فشل إرسال إشعار الأدمن:", error.message);
     }
 }
-// 1. أولاً، احصل على التوكن من الجدول بناءً على موبايل المريض
-// دالة إرسال إشعار حجز موحد
-async function sendBookingNotification(mobile) {
-    try {
-        const patientRes = await pool.query(
-            'SELECT fcm_token FROM patients WHERE mobile = $1 AND fcm_token IS NOT NULL LIMIT 1', 
-            [mobile]
-        );
 
-        if (patientRes.rows.length > 0) {
-            const fcm_token = patientRes.rows[0].fcm_token;
-            await getMessaging().send({
-                token: fcm_token,
-                notification: { title: 'تأكيد الحجز', body: 'تم حجز موعدك بنجاح' },
-                data: { type: 'BOOKING_CONFIRMED' },
-                android: {
-                    priority: 'high',
-                    notification: {
-                        channelId: 'high_importance_channel',
-                        clickAction: 'FLUTTER_NOTIFICATION_CLICK'
-                    }
-                }
-            });
-            console.log("✅ تم إرسال إشعار الحجز بنجاح للمريض");
-        }
-    } catch (error) {
-        console.error("❌ فشل إرسال إشعار المريض:", error.message);
-    }
-}
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
         await sendBookingAlert({
             patient_name: patient_name,
