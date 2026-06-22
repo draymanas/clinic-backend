@@ -656,8 +656,8 @@ app.post('/talkjs-webhook', async (req, res) => {
             
             // البحث باستخدام الـ ID (إذا كنت ترسل الـ ID الرقمي لـ TalkJS) 
             // أو استخدم mobile = $1 إذا كنت ترسل رقم الموبايل
-            const patientRes = await pool.query('SELECT fcm_token FROM patients WHERE id = $1 AND fcm_token IS NOT NULL LIMIT 1', [receiverId]);
-            
+           // التعديل هنا: البحث باستخدام الـ mobile بدلاً من الـ id
+const patientRes = await pool.query('SELECT fcm_token FROM patients WHERE mobile = $1 AND fcm_token IS NOT NULL LIMIT 1', [receiverId]);
             if (patientRes.rows.length > 0) {
                 console.log("✅ المستقبل مريض (تم العثور عليه في جدول المرضى)، جاري الإرسال...");
                 await getMessaging().send({ 
