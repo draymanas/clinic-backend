@@ -386,37 +386,49 @@ if (adminToken) {
         console.error("❌ فشل إرسال إشعار الأدمن:", error.message);
     }
 }
-if (fcm_token) {
-    const patientMessage = {
-        token: fcm_token,
-        notification: {
-            title: 'تأكيد الحجز',
-            body: 'تم حجز موعدك بنجاح'
-          },
-        data: {
-        // هذه البيانات تجبر التطبيق على "الانتباه" للإشعار
-        type: 'BOOKING_CONFIRMED',
-        booking_id: String(result.rows[0].id) 
-    },
-    android: {
-        priority: 'high',
-        notification: {
-            channelId: 'high_importance_channel', // تأكد أن هذا مطابق لما في الموبايل
-            clickAction: 'FLUTTER_NOTIFICATION_CLICK'
+// 1. أولاً، احصل على التوكن من الجدول بناءً على موبايل المريض
+const patientRes = await pool.query(
+    'SELECT fcm_token, id FROM patients WHERE mobile = $1 LIMIT 1', 
+    [patientMobile] // تأكد أن هذا المتغير يحمل رقم الموبايل
+);
+
+if (patientRes.rows.length > 0) {
+    const fcm_token = patientRes.rows[0].fcm_token;
+    const patientId = patientRes.rows[0].id; // أو الـ booking_id الذي تحتاجه
+
+    if (fcm_token) {
+        const patientMessage = {
+            token: fcm_token,
+            notification: {
+                title: 'تأكيد الحجز',
+                body: 'تم حجز موعدك بنجاح'
+            },
+            data: {
+                type: 'BOOKING_CONFIRMED',
+                booking_id: String(patientId) // أو رقم الحجز الفعلي
+            },
+            android: {
+                priority: 'high',
+                notification: {
+                    channelId: 'high_importance_channel',
+                    clickAction: 'FLUTTER_NOTIFICATION_CLICK'
+                }
+            }
+        };
+
+        console.log("🔍 السيرفر بيحاول يبعت للتوكن ده:", fcm_token);
+        try {
+            await getMessaging().send(patientMessage);
+            console.log("✅ تم إرسال إشعار المريض بنجاح");
+        } catch (error) {
+            console.error("❌ فشل إرسال إشعار المريض:", error.message);
         }
-    }
-};
-console.log("🔍 السيرفر بيحاول يبعت للتوكن ده:", fcm_token);
-    try {
-        await getMessaging().send(patientMessage);
-        console.log("✅ تم إرسال إشعار المريض بنجاح");
-    } catch (error) {
-        console.error("❌ فشل إرسال إشعار المريض:", error.message);
+    } else {
+        console.log("⚠️ المريض موجود في الجدول ولكن لا يملك fcm_token.");
     }
 } else {
-    console.log("⚠️ المريض لم يرسل fcm_token في الـ Body");
+    console.log("⚠️ المريض غير مسجل في جدول المرضى!");
 }
-
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
         await sendBookingAlert({
             patient_name: patient_name,
