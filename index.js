@@ -1,49 +1,66 @@
-require('dotenv').config(); // ده المحرك اللي بيسحب البيانات من ملف الـ .env
+require('dotenv').config();
 const express = require('express');
-const cors = require('cors'); // تأكد من وجود هذا السطر
-const app = express();
+const cors = require('cors');
 const admin = require('firebase-admin');
-//const { getMessaging } = require('firebase-admin/messaging'); // أضف هذا السطر
 const { createClient } = require('@supabase/supabase-js');
-const axios = require('axios'); // ضيف السطر ده فوق خالص في أول الملف 
-// بيانات الربط (هتلاقيها في إعدادات سوبابيز عندك - API Settings)
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
-const { Pool } = require('pg'); // استدعاء واحد فقط هنا
+const axios = require('axios');
+const { Pool } = require('pg');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const cron = require('node-cron');
 
-const { initializeApp, cert } = require('firebase-admin/app');
-const { getMessaging } = require('firebase-admin/messaging');
+// إعدادات التطبيق
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// بيانات الربط
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// تهيئة Firebase Admin
 const serviceAccount = require('./serviceAccountKey.json');
 
-// الطريقة الصحيحة للتهيئة
 if (!admin.apps.length) {
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
     });
 }
 
-// الوصول إلى messaging بعد التهيئة الصحيحة
+// تعريف messaging
 const messaging = admin.messaging();
-// التهيئة الصحيحة للمكتبة الحديثة
-initializeApp({
-  credential: cert(serviceAccount)
-});
-
-
-
 console.log("✅ Firebase Admin initialized successfully!");
 
-// 3. التحقق (عشان السيرفر ميهنجش لو الملف مش مقروء)
+// التحقق من بيانات Supabase
 if (!supabaseUrl || !supabaseKey) {
   console.error("❌ خطأ: لم يتم العثور على بيانات Supabase في ملف .env");
   process.exit(1);
 }
 
+// مسار الإشعارات (الذي قمنا بربطه في الـ Frontend)
+app.post('/api/send-bulk-notification', async (req, res) => {
+    const { targetType, targetId, title, body } = req.body;
+    
+    try {
+        // هنا تضع منطق إرسال الإشعارات الخاص بك باستخدام متغير messaging
+        // مثال: await messaging.send({ ... });
+        
+        res.status(200).json({ status: "تم الإرسال بنجاح!" });
+    } catch (error) {
+        console.error("Error in bulk notification:", error);
+        res.status(500).json({ error: "فشل الإرسال" });
+    }
+});
+
+// باقي الكود الخاص بك (الحجوزات، الـ cron jobs، إلخ) يوضع هنا
+// ...
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+});
 
 // --- 1. الإعدادات العامة ---
 app.use(cors());
