@@ -701,8 +701,7 @@ const patientRes = await pool.query('SELECT fcm_token FROM patients WHERE mobile
     res.status(200).send('OK');
 });
 
-const admin = require('firebase-admin'); // تأكد من أنك مستدعي مكتبة firebase-admin
-admin.initializeApp();
+
 
 app.post('/api/send-bulk-notification', async (req, res) => {
     const { targetGroup, title, body } = req.body; // targetGroup: 'patients' أو 'doctors'
