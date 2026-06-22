@@ -329,9 +329,8 @@ app.get('/doctor-direct/:id', async (req, res) => {
         console.error("❌ خطأ داخلي:", err);
         res.status(500).json({ error: "Internal Server Error" });
     }
+});
 
-// 1. أولاً، احصل على التوكن من الجدول بناءً على موبايل المريض
-// دالة إرسال إشعار حجز موحد
 async function sendBookingNotification(mobile) {
     try {
         const patientRes = await pool.query(
@@ -353,14 +352,14 @@ async function sendBookingNotification(mobile) {
                     }
                 }
             });
-            console.log("✅ تم إرسال إشعار الحجز بنجاح للمريض");
+            console.log("✅ تم إرسال إشعار الحجز بنجاح");
         }
     } catch (error) {
         console.error("❌ فشل إرسال إشعار المريض:", error.message);
     }
 }
 
-});app.post('/book-appointment', async (req, res) => {
+app.post('/book-appointment', async (req, res) => {
     const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price, fcm_token } = req.body;
 
     try {
