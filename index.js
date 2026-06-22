@@ -57,10 +57,6 @@ app.post('/api/send-bulk-notification', async (req, res) => {
 // باقي الكود الخاص بك (الحجوزات، الـ cron jobs، إلخ) يوضع هنا
 // ...
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-    console.log(`🚀 Server is running on port ${PORT}`);
-});
 
 // --- 1. الإعدادات العامة ---
 app.use(cors());
