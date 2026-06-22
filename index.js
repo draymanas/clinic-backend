@@ -341,7 +341,12 @@ app.get('/doctor-direct/:id', async (req, res) => {
             RETURNING *`,
             [doctor_id, doctor_name, patient_name, mobile, appointment_date, price, 'pending', fcm_token]
         );
-
+try {
+    console.log("🚀 جاري إرسال إشعار تأكيد الحجز للمريض...");
+    await sendBookingNotification(mobile); 
+} catch (error) {
+    console.error("❌ فشل إرسال إشعار المريض:", error);
+}
         // 2. جلب التوكن الخاص بالطبيب
         const doctorRes = await pool.query('SELECT fcm_token FROM doctors WHERE id = $1', [doctor_id]);
         const fcmToken = doctorRes.rows[0]?.fcm_token;
@@ -390,7 +395,6 @@ if (adminToken) {
 // دالة إرسال إشعار حجز موحد
 async function sendBookingNotification(mobile) {
     try {
-        // 1. جلب التوكن مباشرة من جدول patients بنفس الطريقة الناجحة
         const patientRes = await pool.query(
             'SELECT fcm_token FROM patients WHERE mobile = $1 AND fcm_token IS NOT NULL LIMIT 1', 
             [mobile]
@@ -398,18 +402,10 @@ async function sendBookingNotification(mobile) {
 
         if (patientRes.rows.length > 0) {
             const fcm_token = patientRes.rows[0].fcm_token;
-            console.log("✅ تم العثور على المريض، جاري إرسال إشعار الحجز...");
-
-            // 2. إرسال الإشعار بنفس التنسيق الذي طلبته
             await getMessaging().send({
                 token: fcm_token,
-                notification: {
-                    title: 'تأكيد الحجز',
-                    body: 'تم حجز موعدك بنجاح'
-                },
-                data: {
-                    type: 'BOOKING_CONFIRMED'
-                },
+                notification: { title: 'تأكيد الحجز', body: 'تم حجز موعدك بنجاح' },
+                data: { type: 'BOOKING_CONFIRMED' },
                 android: {
                     priority: 'high',
                     notification: {
@@ -418,9 +414,7 @@ async function sendBookingNotification(mobile) {
                     }
                 }
             });
-            console.log("✅ تم إرسال إشعار الحجز بنجاح");
-        } else {
-            console.log("❌ لم يتم العثور على التوكن في جدول المرضى للموبايل:", mobile);
+            console.log("✅ تم إرسال إشعار الحجز بنجاح للمريض");
         }
     } catch (error) {
         console.error("❌ فشل إرسال إشعار المريض:", error.message);
