@@ -701,57 +701,55 @@ const patientRes = await pool.query('SELECT fcm_token FROM patients WHERE mobile
     res.status(200).send('OK');
 });
 
-
-
 app.post('/api/send-bulk-notification', async (req, res) => {
-    const { targetGroup, title, body } = req.body; // targetGroup: 'patients' أو 'doctors'
+    // targetType: 'all_doctors', 'all_patients', 'specific_doctor'
+    const { targetType, targetId, title, body } = req.body; 
 
     try {
-        // 1. تحديد الجدول بناءً على المجموعة المختارة
-        const table = (targetGroup === 'doctors') ? 'doctors' : 'patients';
-        
-        // 2. جلب جميع التوكنات الفعالة من الجدول المحدد
-        const query = `SELECT fcm_token FROM ${table} WHERE fcm_token IS NOT NULL AND fcm_token != ''`;
-        const result = await pool.query(query);
+        let query = '';
+        let values = [];
+
+        // 1. تحديد الاستعلام بناءً على الاختيار
+        if (targetType === 'all_doctors') {
+            query = "SELECT fcm_token FROM doctors WHERE fcm_token IS NOT NULL AND fcm_token != ''";
+        } else if (targetType === 'all_patients') {
+            query = "SELECT fcm_token FROM patients WHERE fcm_token IS NOT NULL AND fcm_token != ''";
+        } else if (targetType === 'specific_doctor' && targetId) {
+            query = "SELECT fcm_token FROM doctors WHERE id = $1 AND fcm_token IS NOT NULL AND fcm_token != ''";
+            values = [targetId];
+        } else {
+            return res.status(400).json({ error: "بيانات غير صحيحة" });
+        }
+
+        // 2. تنفيذ الاستعلام
+        const result = await pool.query(query, values);
         const tokens = result.rows.map(row => row.fcm_token);
 
         if (tokens.length === 0) {
-            return res.status(400).json({ error: "لا توجد توكنات مسجلة لهذه المجموعة" });
+            return res.status(400).json({ error: "لا يوجد مستخدمون بهذه المواصفات" });
         }
 
-        // 3. تقسيم التوكنات إلى مجموعات (Firebase يقبل 500 توكن كحد أقصى في الطلب الواحد)
-        const chunks = [];
-        for (let i = 0; i < tokens.length; i += 500) {
-            chunks.push(tokens.slice(i, i + 500));
-        }
-
-        // 4. إرسال الإشعارات لكل مجموعة
+        // 3. الإرسال (تقسيم 500 توكن)
         let successCount = 0;
         let failureCount = 0;
 
-        for (const chunk of chunks) {
-            const message = {
-                notification: { title, body },
-                tokens: chunk
-            };
-
-            const response = await admin.messaging().sendMulticast(message);
+        for (let i = 0; i < tokens.length; i += 500) {
+            const chunk = tokens.slice(i, i + 500);
+            const message = { notification: { title, body }, tokens: chunk };
+            
+            // تأكد من أن admin مهيأ في الأعلى كما اتفقنا
+            const response = await admin.messaging().sendEachForMulticast(message);
             successCount += response.successCount;
             failureCount += response.failureCount;
         }
 
-        res.status(200).json({ 
-            status: "تمت العملية",
-            sent: successCount,
-            failed: failureCount
-        });
+        res.status(200).json({ status: "تمت العملية", sent: successCount, failed: failureCount });
 
     } catch (err) {
         console.error("Error in bulk notification:", err);
-        res.status(500).json({ error: "فشل الإرسال الجماعي" });
+        res.status(500).json({ error: "خطأ في السيرفر: " + err.message });
     }
 });
-
 app.listen(PORT, () => {
     console.log(`
     🚀 ==========================================
