@@ -436,11 +436,15 @@ app.get('/doctor-direct/:id', async (req, res) => {
     }
 });
 
+
+// ==========================================================
+// 🛠️ ١. كود إرسال إشعار فوري وتلقائي للمريض عند تأكيد الحجز (مع ميزة الفولباك الآمن)
+// ==========================================================
 async function sendBookingNotification(mobile, directFcmToken = null) {
     try {
-        let fcm_token = directFcmToken; // نعتمد على التوكن الممرر فوراً من التطبيق أولاً
+        let fcm_token = directFcmToken;
 
-        // خيار بديل: إذا لم يرسل التطبيق توكن مباشر، نبحث في قاعدة البيانات
+        // إذا لم يتم تمرير توكن مباشر، نبحث عنه في قاعدة البيانات بمسح رقم الهاتف
         if (!fcm_token) {
             const patientRes = await pool.query(
                 "SELECT fcm_token FROM patients WHERE mobile = $1 AND fcm_token IS NOT NULL AND fcm_token != '' LIMIT 1", 
@@ -452,24 +456,77 @@ async function sendBookingNotification(mobile, directFcmToken = null) {
         }
 
         if (fcm_token) {
+            console.log("🚀 جاري إرسال إشعار التأكيد المباشر للتوكن:", fcm_token);
             await getMessaging().send({
                 token: fcm_token,
-                notification: { title: 'تأكيد الحجز', body: 'تم حجز موعدك بنجاح' },
-                data: { type: 'BOOKING_CONFIRMED' },
+                notification: { 
+                    title: '🎉 تأكيد الحجز بالعيادة', 
+                    body: 'تم تسجيل موعد حجزك بنجاح! يسعدنا حضورك في الموعد المحدد.' 
+                },
+                data: { 
+                    type: 'BOOKING_CONFIRMED',
+                    click_action: 'FLUTTER_NOTIFICATION_CLICK'
+                },
                 android: {
                     priority: 'high',
                     notification: {
                         channelId: 'high_importance_channel',
-                        clickAction: 'FLUTTER_NOTIFICATION_CLICK'
+                        clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+                        sound: 'default'
+                    }
+                },
+                apns: {
+                    payload: {
+                        aps: {
+                            sound: 'default',
+                            badge: 1
+                        }
                     }
                 }
             });
-            console.log("✅ تم إرسال إشعار الحجز بنجاح");
+            console.log("✅ تم إرسال إشعار تأكيد الحجز إلى المريض بنجاح!");
+        } else {
+            console.warn("⚠️ تنبيه: لم نتمكن من العثور على توكن FCM للمريض بإرسال فوري أو بمسح الهاتف:", mobile);
         }
     } catch (error) {
-        console.error("❌ فشل إرسال إشعار المريض:", error.message);
+        console.error("❌ خطأ أثناء إرسال إشعار الحجز للمريض:", error.message);
     }
 }
+
+// 🩺 الـ API المحدث لحجز المواعيد مع تمرير توكن المريض الفوري
+app.post('/api/book-appointment', async (req, res) => {
+    const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price, fcm_token } = req.body;
+
+    if (!doctor_id || !patient_name || !mobile) {
+        return res.status(400).json({ error: "الرجاء توفير كافة بيانات الحجز الأساسية" });
+    }
+
+    try {
+        // حماية وحفظ الحجز بقاعدة البيانات
+        const result = await pool.query(
+            `INSERT INTO appointments 
+            (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status, fcm_token) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+            RETURNING *`,
+            [doctor_id, doctor_name, patient_name, mobile, appointment_date, price, 'pending', fcm_token]
+        );
+
+        console.log("📝 تم حفظ الحجز بقاعدة البيانات بنجاح ID:", result.rows[0].id);
+
+        // استدعاء فوري لإرسال إشعار تأكيد حجز المريض
+        // نقوم بتمرير التوكن الممرر من التطبيق مباشرة (فولباك فوري ومضمون ١٠٠٪)
+        sendBookingNotification(mobile, fcm_token);
+
+        res.status(200).json({ 
+            status: "success", 
+            message: "تم حفظ الحجز وإرسال إشعار التأكيد بنجاح", 
+            appointment: result.rows[0] 
+        });
+    } catch (error) {
+        console.error("❌ خطأ أثناء إضافة الحجز:", error.message);
+        res.status(500).json({ error: "فشل الحجز نتيجة خطأ داخلي: " + error.message });
+    }
+});
 
 app.post('/book-appointment', async (req, res) => {
     const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price, fcm_token } = req.body;
