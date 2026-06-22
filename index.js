@@ -701,6 +701,58 @@ const patientRes = await pool.query('SELECT fcm_token FROM patients WHERE mobile
     res.status(200).send('OK');
 });
 
+const admin = require('firebase-admin'); // تأكد من أنك مستدعي مكتبة firebase-admin
+admin.initializeApp();
+
+app.post('/api/send-bulk-notification', async (req, res) => {
+    const { targetGroup, title, body } = req.body; // targetGroup: 'patients' أو 'doctors'
+
+    try {
+        // 1. تحديد الجدول بناءً على المجموعة المختارة
+        const table = (targetGroup === 'doctors') ? 'doctors' : 'patients';
+        
+        // 2. جلب جميع التوكنات الفعالة من الجدول المحدد
+        const query = `SELECT fcm_token FROM ${table} WHERE fcm_token IS NOT NULL AND fcm_token != ''`;
+        const result = await pool.query(query);
+        const tokens = result.rows.map(row => row.fcm_token);
+
+        if (tokens.length === 0) {
+            return res.status(400).json({ error: "لا توجد توكنات مسجلة لهذه المجموعة" });
+        }
+
+        // 3. تقسيم التوكنات إلى مجموعات (Firebase يقبل 500 توكن كحد أقصى في الطلب الواحد)
+        const chunks = [];
+        for (let i = 0; i < tokens.length; i += 500) {
+            chunks.push(tokens.slice(i, i + 500));
+        }
+
+        // 4. إرسال الإشعارات لكل مجموعة
+        let successCount = 0;
+        let failureCount = 0;
+
+        for (const chunk of chunks) {
+            const message = {
+                notification: { title, body },
+                tokens: chunk
+            };
+
+            const response = await admin.messaging().sendMulticast(message);
+            successCount += response.successCount;
+            failureCount += response.failureCount;
+        }
+
+        res.status(200).json({ 
+            status: "تمت العملية",
+            sent: successCount,
+            failed: failureCount
+        });
+
+    } catch (err) {
+        console.error("Error in bulk notification:", err);
+        res.status(500).json({ error: "فشل الإرسال الجماعي" });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`
     🚀 ==========================================
