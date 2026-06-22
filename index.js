@@ -62,6 +62,111 @@ const pool = new Pool({
   }
 });
 
+
+// ==========================================
+// 🚀 كود السيرفر المصلح لخدمة الإشعارات (server.js)
+// ==========================================
+ 
+ 
+
+// 🔔 الـ API المصلح لإرسال الإشعارات الجماعية والفردية بالتوافق مع كروت الإرسال
+app.post('/api/send-bulk-notification', async (req, res) => {
+    // توحيد الحقول المستلمة من طريقتي الإرسال (Dashboard أو NotificationsManager)
+    let { targetType, targetId, targetGroup, title, body } = req.body; 
+
+    // إذا جاء الطلب بالصيغة القديمة من لوحة التحكم (targetGroup = 'patients' أو 'doctors')
+    if (targetGroup) {
+        if (targetGroup === 'patients') targetType = 'all_patients';
+        if (targetGroup === 'doctors') targetType = 'all_doctors';
+    }
+
+    // التحقق الفوري من صحة المدخلات الأساسية لمنع الفشل
+    if (!title || !body) {
+        return res.status(400).json({ error: "يرجى ملء كافة حقول العنوان ونص الإشعار تلقائياً" });
+    }
+
+    try {
+        let query = '';
+        let values = [];
+
+        // تحديد الاستعلام المناسب لجمع التوكنات FCM المسجلة بناءً على رغبة الإرسال
+        if (targetType === 'all_doctors') {
+            query = "SELECT fcm_token FROM doctors WHERE fcm_token IS NOT NULL AND fcm_token != ''";
+        } else if (targetType === 'all_patients') {
+            query = "SELECT fcm_token FROM patients WHERE fcm_token IS NOT NULL AND fcm_token != ''";
+        } else if (targetType === 'specific_doctor' && targetId) {
+            query = "SELECT fcm_token FROM doctors WHERE id = $1 AND fcm_token IS NOT NULL AND fcm_token != ''";
+            values = [targetId];
+        } else {
+            return res.status(400).json({ error: "بيانات الإرسال غير متوافقة أو نوع المستلم خاطئ" });
+        }
+
+        // تنفيذ الاستعلام لجلب توكنات التطبيقات النشطة
+        const result = await pool.query(query, values);
+        
+        // استخلاص وتنظيف التوكنات (التخلص من المسافات الفارغة والتكرار)
+        const rawTokens = result.rows.map(row => row.fcm_token?.trim()).filter(Boolean);
+        const tokens = [...new Set(rawTokens)];
+
+        if (tokens.length === 0) {
+            return res.status(404).json({ error: "تنبيه: لم يتم العثور على أي توكنات FCM نشطة لهذه الفئة!" });
+        }
+
+        let successCount = 0;
+        let failureCount = 0;
+
+        // إرسال الإشعارات على دفعات (مجموعة 500 كحد أقصى لكل نداء لفايربيز)
+        for (let i = 0; i < tokens.length; i += 500) {
+            const chunk = tokens.slice(i, i + 500);
+            
+            const message = {
+                notification: { title, body },
+                tokens: chunk,
+                // إعدادات مخصصة لأندرويد لتشغيل شاشة التنبيه الفوري بهزاز وصوت مرتفع الأهمية
+                android: {
+                    priority: 'high',
+                    notification: {
+                        channelId: 'high_importance_channel',
+                        clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+                        sound: 'default'
+                    }
+                },
+                // إعدادات IOS لتفعيل الشارة الخارجية وصوت التنبيه
+                apns: {
+                    payload: {
+                        aps: {
+                            badge: 1,
+                            sound: 'default'
+                        }
+                    }
+                }
+            };
+            
+            // تنفيذ الإرسال الآمن باستخدام مكتبة Messaging الموصى بها رسمياً
+            const response = await getMessaging().sendEachForMulticast(message);
+            successCount += response.successCount;
+            failureCount += response.failureCount;
+        }
+
+        console.log(`📢 تم إرسال الإشعارات الجماعية: نجح ${successCount} | فشل ${failureCount}`);
+        res.status(200).json({ 
+            status: "تم الإرسال بنجاح!", 
+            message: `تم إرسال الإشعار لـ ${successCount} جهاز بنجاح. وفشل الإرسال لـ ${failureCount} جهاز.`, 
+            sent: successCount, 
+            failed: failureCount 
+        });
+
+    } catch (err) {
+        console.error("❌ خطأ أثناء تنفيذ الإرسال الجماعي:", err);
+        res.status(500).json({ error: "فشل الإرسال نتيجة خطأ داخلي بالسيرفر: " + err.message });
+    }
+});
+
+// باقي المسارات (doctors, register-doctor, book-appointment...) تعمل كما هي تماماً دون تغيير
+
+
+
+
 // --- 2. قسم الأطباء (Doctors) ---
 
 app.get('/doctors', async (req, res) => {
@@ -701,55 +806,7 @@ const patientRes = await pool.query('SELECT fcm_token FROM patients WHERE mobile
     res.status(200).send('OK');
 });
 
-app.post('/api/send-bulk-notification', async (req, res) => {
-    // targetType: 'all_doctors', 'all_patients', 'specific_doctor'
-    const { targetType, targetId, title, body } = req.body; 
-
-    try {
-        let query = '';
-        let values = [];
-
-        // 1. تحديد الاستعلام بناءً على الاختيار
-        if (targetType === 'all_doctors') {
-            query = "SELECT fcm_token FROM doctors WHERE fcm_token IS NOT NULL AND fcm_token != ''";
-        } else if (targetType === 'all_patients') {
-            query = "SELECT fcm_token FROM patients WHERE fcm_token IS NOT NULL AND fcm_token != ''";
-        } else if (targetType === 'specific_doctor' && targetId) {
-            query = "SELECT fcm_token FROM doctors WHERE id = $1 AND fcm_token IS NOT NULL AND fcm_token != ''";
-            values = [targetId];
-        } else {
-            return res.status(400).json({ error: "بيانات غير صحيحة" });
-        }
-
-        // 2. تنفيذ الاستعلام
-        const result = await pool.query(query, values);
-        const tokens = result.rows.map(row => row.fcm_token);
-
-        if (tokens.length === 0) {
-            return res.status(400).json({ error: "لا يوجد مستخدمون بهذه المواصفات" });
-        }
-
-        // 3. الإرسال (تقسيم 500 توكن)
-        let successCount = 0;
-        let failureCount = 0;
-
-        for (let i = 0; i < tokens.length; i += 500) {
-            const chunk = tokens.slice(i, i + 500);
-            const message = { notification: { title, body }, tokens: chunk };
-            
-            // تأكد من أن admin مهيأ في الأعلى كما اتفقنا
-            const response = await admin.messaging().sendEachForMulticast(message);
-            successCount += response.successCount;
-            failureCount += response.failureCount;
-        }
-
-        res.status(200).json({ status: "تمت العملية", sent: successCount, failed: failureCount });
-
-    } catch (err) {
-        console.error("Error in bulk notification:", err);
-        res.status(500).json({ error: "خطأ في السيرفر: " + err.message });
-    }
-});
+ 
 app.listen(PORT, () => {
     console.log(`
     🚀 ==========================================
