@@ -436,16 +436,22 @@ app.get('/doctor-direct/:id', async (req, res) => {
     }
 });
 
-async function sendBookingNotification(mobile) {
+async function sendBookingNotification(mobile, directFcmToken = null) {
     try {
-        const patientRes = await pool.query(
-            'SELECT fcm_token FROM patients WHERE mobile = $1 AND fcm_token IS NOT NULL LIMIT 1', 
-            [mobile]
-        );
+        let fcm_token = directFcmToken; // نعتمد على التوكن الممرر فوراً من التطبيق أولاً
 
-        if (patientRes.rows.length > 0) {
-            const fcm_token = patientRes.rows[0].fcm_token;
-            console.log("🚀 التوكن المرسل للمريض هو:", fcm_token);
+        // خيار بديل: إذا لم يرسل التطبيق توكن مباشر، نبحث في قاعدة البيانات
+        if (!fcm_token) {
+            const patientRes = await pool.query(
+                "SELECT fcm_token FROM patients WHERE mobile = $1 AND fcm_token IS NOT NULL AND fcm_token != '' LIMIT 1", 
+                [mobile]
+            );
+            if (patientRes.rows.length > 0) {
+                fcm_token = patientRes.rows[0].fcm_token;
+            }
+        }
+
+        if (fcm_token) {
             await getMessaging().send({
                 token: fcm_token,
                 notification: { title: 'تأكيد الحجز', body: 'تم حجز موعدك بنجاح' },
