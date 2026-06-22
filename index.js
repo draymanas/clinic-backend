@@ -567,26 +567,7 @@ app.post('/api/save-token', async (req, res) => {
     }
 });
 
-app.post('/api/save-patient-token', async (req, res) => {
-    const { mobile, fcmToken } = req.body;
-    try {
-        // تم التصحيح: استخدمنا اسم العمود 'mobile' الموجود في صورتك
-        const result = await pool.query(
-            'UPDATE patients SET fcm_token = $1 WHERE mobile = $2',
-            [fcmToken, mobile]
-        );
-        
-        if (result.rowCount === 0) {
-            return res.status(404).json({ error: "المريض غير موجود بهذا الرقم" });
-        }
-        
-        res.status(200).json({ message: "تم تحديث التوكن بنجاح" });
-    } catch (err) {
-        console.error("خطأ في حفظ التوكن:", err);
-        res.status(500).json({ error: "فشل حفظ التوكن" });
-    }
-});
-
+ 
 app.patch('/update-appointment/:id', async (req, res) => {
     try {
         const { status } = req.body;
@@ -806,7 +787,7 @@ cron.schedule('0 10 * * *', async () => {
                     hour12: true
                 }) : '';
 
-                const customBody = `عزيزي ${row.patient_name}، نذكرك بموعد حجزك اليوم بالعيادة مع دكتور ${row.doctor_name || 'الأخصائي'}${timeString ? ` الساعة ${timeString}` : ''}. يسعدنا حضورك!`;
+                const customBody = `عزيزي ${row.patient_name}، نذكرك بموعد حجزك اليوم بالعيادة مع دكتور ${row.doctor_name || 'الأخصائي'}${timeString ? ` الساعة ${timeString}` : ''}. يسعدنا حضورك في الموعد المحدد!`;
 
                 await getMessaging().send({
                     token: row.fcm_token,
