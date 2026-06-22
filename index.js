@@ -437,96 +437,7 @@ app.get('/doctor-direct/:id', async (req, res) => {
 });
 
 
-// ==========================================================
-// 🛠️ ١. كود إرسال إشعار فوري وتلقائي للمريض عند تأكيد الحجز (مع ميزة الفولباك الآمن)
-// ==========================================================
-async function sendBookingNotification(mobile, directFcmToken = null) {
-    try {
-        let fcm_token = directFcmToken;
 
-        // إذا لم يتم تمرير توكن مباشر، نبحث عنه في قاعدة البيانات بمسح رقم الهاتف
-        if (!fcm_token) {
-            const patientRes = await pool.query(
-                "SELECT fcm_token FROM patients WHERE mobile = $1 AND fcm_token IS NOT NULL AND fcm_token != '' LIMIT 1", 
-                [mobile]
-            );
-            if (patientRes.rows.length > 0) {
-                fcm_token = patientRes.rows[0].fcm_token;
-            }
-        }
-
-        if (fcm_token) {
-            console.log("🚀 جاري إرسال إشعار التأكيد المباشر للتوكن:", fcm_token);
-            await getMessaging().send({
-                token: fcm_token,
-                notification: { 
-                    title: '🎉 تأكيد الحجز بالعيادة', 
-                    body: 'تم تسجيل موعد حجزك بنجاح! يسعدنا حضورك في الموعد المحدد.' 
-                },
-                data: { 
-                    type: 'BOOKING_CONFIRMED',
-                    click_action: 'FLUTTER_NOTIFICATION_CLICK'
-                },
-                android: {
-                    priority: 'high',
-                    notification: {
-                        channelId: 'high_importance_channel',
-                        clickAction: 'FLUTTER_NOTIFICATION_CLICK',
-                        sound: 'default'
-                    }
-                },
-                apns: {
-                    payload: {
-                        aps: {
-                            sound: 'default',
-                            badge: 1
-                        }
-                    }
-                }
-            });
-            console.log("✅ تم إرسال إشعار تأكيد الحجز إلى المريض بنجاح!");
-        } else {
-            console.warn("⚠️ تنبيه: لم نتمكن من العثور على توكن FCM للمريض بإرسال فوري أو بمسح الهاتف:", mobile);
-        }
-    } catch (error) {
-        console.error("❌ خطأ أثناء إرسال إشعار الحجز للمريض:", error.message);
-    }
-}
-
-// 🩺 الـ API المحدث لحجز المواعيد مع تمرير توكن المريض الفوري
-app.post('/api/book-appointment', async (req, res) => {
-    const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price, fcm_token } = req.body;
-
-    if (!doctor_id || !patient_name || !mobile) {
-        return res.status(400).json({ error: "الرجاء توفير كافة بيانات الحجز الأساسية" });
-    }
-
-    try {
-        // حماية وحفظ الحجز بقاعدة البيانات
-        const result = await pool.query(
-            `INSERT INTO appointments 
-            (doctor_id, doctor_name, patient_name, mobile, booking_date, price, status, fcm_token) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
-            RETURNING *`,
-            [doctor_id, doctor_name, patient_name, mobile, appointment_date, price, 'pending', fcm_token]
-        );
-
-        console.log("📝 تم حفظ الحجز بقاعدة البيانات بنجاح ID:", result.rows[0].id);
-
-        // استدعاء فوري لإرسال إشعار تأكيد حجز المريض
-        // نقوم بتمرير التوكن الممرر من التطبيق مباشرة (فولباك فوري ومضمون ١٠٠٪)
-        sendBookingNotification(mobile, fcm_token);
-
-        res.status(200).json({ 
-            status: "success", 
-            message: "تم حفظ الحجز وإرسال إشعار التأكيد بنجاح", 
-            appointment: result.rows[0] 
-        });
-    } catch (error) {
-        console.error("❌ خطأ أثناء إضافة الحجز:", error.message);
-        res.status(500).json({ error: "فشل الحجز نتيجة خطأ داخلي: " + error.message });
-    }
-});
 
 app.post('/book-appointment', async (req, res) => {
     const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price, fcm_token } = req.body;
@@ -540,12 +451,7 @@ app.post('/book-appointment', async (req, res) => {
             RETURNING *`,
             [doctor_id, doctor_name, patient_name, mobile, appointment_date, price, 'pending', fcm_token]
         );
-try {
-    console.log("🚀 جاري إرسال إشعار تأكيد الحجز للمريض...");
-    await sendBookingNotification(mobile); 
-} catch (error) {
-    console.error("❌ فشل إرسال إشعار المريض:", error);
-}
+ 
         // 2. جلب التوكن الخاص بالطبيب
         const doctorRes = await pool.query('SELECT fcm_token FROM doctors WHERE id = $1', [doctor_id]);
         const fcmToken = doctorRes.rows[0]?.fcm_token;
@@ -869,6 +775,79 @@ const patientRes = await pool.query('SELECT fcm_token FROM patients WHERE mobile
     res.status(200).send('OK');
 });
 
+
+// ⏰ ٢. نظام التذكير التلقائي اليومي بجدول المواعيد (الساعة 10:00 صباحاً بتوقيت مصر)
+// ==========================================================
+const cron = require('node-cron');
+
+// تشغيل يومي في تمام الساعة 10:00 صباحاً بتوقيت أم الدنيا (القاهرة)
+cron.schedule('0 10 * * *', async () => {
+    console.log("--- ⏰ [cron] بدء فحص وإرسال تذكيرات المواعيد لليوم الحالي ---");
+    try {
+        // استعلام لجلب الحجوزات القائمة لليوم مع توكنات المرضى واسم الطبيب
+        const query = `
+            SELECT a.id, a.patient_name, a.booking_date, a.fcm_token, d.name as doctor_name
+            FROM appointments a
+            LEFT JOIN doctors d ON a.doctor_id = d.id
+            WHERE a.status = 'pending' 
+              AND a.fcm_token IS NOT NULL 
+              AND a.fcm_token != ''
+              AND DATE(a.booking_date) = CURRENT_DATE
+        `;
+        const result = await pool.query(query);
+        console.log(`🔍 تم العثور على عدد (${result.rows.length}) حجوزات مفعّلة لليوم تستحق التذكير.`);
+
+        for (const row of result.rows) {
+            try {
+                // تنسيق وقت الحجز بشكل جذاب وواضح بصيغة 12 ساعة
+                const timeString = row.booking_date ? new Date(row.booking_date).toLocaleTimeString('ar-EG', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                }) : '';
+
+                const customBody = `عزيزي ${row.patient_name}، نذكرك بموعد حجزك اليوم بالعيادة مع دكتور ${row.doctor_name || 'الأخصائي'}${timeString ? ` الساعة ${timeString}` : ''}. يسعدنا حضورك!`;
+
+                await getMessaging().send({
+                    token: row.fcm_token,
+                    notification: {
+                        title: '⏰ تذكير بموعد حجزك اليوم',
+                        body: customBody
+                    },
+                    data: {
+                        type: 'APPOINTMENT_REMINDER',
+                        appointment_id: String(row.id),
+                        click_action: 'FLUTTER_NOTIFICATION_CLICK'
+                    },
+                    android: {
+                        priority: 'high',
+                        notification: {
+                            channelId: 'high_importance_channel',
+                            clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+                            sound: 'default'
+                        }
+                    },
+                    apns: {
+                        payload: {
+                            aps: {
+                                sound: 'default',
+                                badge: 1
+                            }
+                        }
+                    }
+                });
+                console.log(`✅ تم إرسال تذكير ناجح للمريض: ${row.patient_name}`);
+            } catch (err) {
+                console.error(`❌ فشل إرسال التذكير للمريض ${row.patient_name} (التوكن قد يكون غير صالح):`, err.message);
+            }
+        }
+    } catch (error) {
+        console.error("❌ خطأ جماعي في وظيفة كرون جوب التذكير التلقائي:", error.message);
+    }
+}, {
+    scheduled: true,
+    timezone: "Africa/Cairo" // ضبط النطاق الزمني لجمهورية مصر العربية تماماً للتوافق
+});
  
 app.listen(PORT, () => {
     console.log(`
