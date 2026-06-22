@@ -387,47 +387,44 @@ if (adminToken) {
     }
 }
 // 1. أولاً، احصل على التوكن من الجدول بناءً على موبايل المريض
-const patientRes = await pool.query(
-    'SELECT fcm_token, id FROM patients WHERE mobile = $1 LIMIT 1', 
-    [patientMobile] // تأكد أن هذا المتغير يحمل رقم الموبايل
-);
+// دالة إرسال إشعار حجز موحد
+async function sendBookingNotification(mobile) {
+    try {
+        // 1. جلب التوكن مباشرة من جدول patients بنفس الطريقة الناجحة
+        const patientRes = await pool.query(
+            'SELECT fcm_token FROM patients WHERE mobile = $1 AND fcm_token IS NOT NULL LIMIT 1', 
+            [mobile]
+        );
 
-if (patientRes.rows.length > 0) {
-    const fcm_token = patientRes.rows[0].fcm_token;
-    const patientId = patientRes.rows[0].id; // أو الـ booking_id الذي تحتاجه
+        if (patientRes.rows.length > 0) {
+            const fcm_token = patientRes.rows[0].fcm_token;
+            console.log("✅ تم العثور على المريض، جاري إرسال إشعار الحجز...");
 
-    if (fcm_token) {
-        const patientMessage = {
-            token: fcm_token,
-            notification: {
-                title: 'تأكيد الحجز',
-                body: 'تم حجز موعدك بنجاح'
-            },
-            data: {
-                type: 'BOOKING_CONFIRMED',
-                booking_id: String(patientId) // أو رقم الحجز الفعلي
-            },
-            android: {
-                priority: 'high',
+            // 2. إرسال الإشعار بنفس التنسيق الذي طلبته
+            await getMessaging().send({
+                token: fcm_token,
                 notification: {
-                    channelId: 'high_importance_channel',
-                    clickAction: 'FLUTTER_NOTIFICATION_CLICK'
+                    title: 'تأكيد الحجز',
+                    body: 'تم حجز موعدك بنجاح'
+                },
+                data: {
+                    type: 'BOOKING_CONFIRMED'
+                },
+                android: {
+                    priority: 'high',
+                    notification: {
+                        channelId: 'high_importance_channel',
+                        clickAction: 'FLUTTER_NOTIFICATION_CLICK'
+                    }
                 }
-            }
-        };
-
-        console.log("🔍 السيرفر بيحاول يبعت للتوكن ده:", fcm_token);
-        try {
-            await getMessaging().send(patientMessage);
-            console.log("✅ تم إرسال إشعار المريض بنجاح");
-        } catch (error) {
-            console.error("❌ فشل إرسال إشعار المريض:", error.message);
+            });
+            console.log("✅ تم إرسال إشعار الحجز بنجاح");
+        } else {
+            console.log("❌ لم يتم العثور على التوكن في جدول المرضى للموبايل:", mobile);
         }
-    } else {
-        console.log("⚠️ المريض موجود في الجدول ولكن لا يملك fcm_token.");
+    } catch (error) {
+        console.error("❌ فشل إرسال إشعار المريض:", error.message);
     }
-} else {
-    console.log("⚠️ المريض غير مسجل في جدول المرضى!");
 }
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
         await sendBookingAlert({
