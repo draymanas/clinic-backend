@@ -773,7 +773,7 @@ cron.schedule('30 0 * * *', async () => {
             WHERE a.status = 'pending' 
               AND a.fcm_token IS NOT NULL 
               AND a.fcm_token != ''
-              AND DATE(a.booking_date) = CURRENT_DATE
+              AND a.booking_date::text LIKE TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') || '%'
         `;
         const result = await pool.query(query);
         console.log(`🔍 تم العثور على عدد (${result.rows.length}) حجوزات مفعّلة لليوم تستحق التذكير.`);
