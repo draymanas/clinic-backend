@@ -760,7 +760,7 @@ const patientRes = await pool.query('SELECT fcm_token FROM patients WHERE mobile
 // ⏰ ٢. نظام التذكير التلقائي اليومي بجدول المواعيد (الساعة 10:00 صباحاً بتوقيت مصر)
 // ==========================================================
 
-cron.schedule('45 2 * * *', async () => {
+cron.schedule('56 2 * * *', async () => {
     console.log("--- ⏰ [cron] بدء فحص وإرسال تذكيرات المواعيد لليوم الحالي ---");
 
     // 1. تعريف المتغير في نفس المكان الذي ستستخدمه فيه
@@ -777,14 +777,21 @@ cron.schedule('45 2 * * *', async () => {
     WHERE TO_CHAR(booking_date, 'YYYY-MM-DD') = '${egyptDate}'
 `;
         const result = await pool.query(query);
-       for (const row of result.rows) {
-    // 1. استخراج التوكن بأي اسم محتمل (لنتفادى أي اختلاف في التسمية)
-    const token = row.fcm_token || row.fcmtoken || row.token;
+    for (const row of result.rows) {
+    // 1. طباعة كل مفاتيح الصف لنعرف الاسم الدقيق الذي يراه الكود
+    console.log("مفاتيح الصف المتاحة:", Object.keys(row));
 
-    // 2. طباعة للتأكد مما نراه فعلياً
-    console.log(`فحص المريض: ${row.patient_name} | التوكن المكتشف: ${token ? 'موجود' : 'غير موجود'}`);
+    // 2. استخدم مفتاحاً ديناميكياً (نبحث عن أي مفتاح يحتوي على كلمة token)
+    const tokenKey = Object.keys(row).find(key => key.toLowerCase().includes('token'));
+    const token = tokenKey ? row[tokenKey] : null;
 
-    if (!token) continue; // تخطي إذا لم يوجد
+    console.log(`فحص المريض: ${row.patient_name} | التوكن المكتشف من الحقل (${tokenKey}): ${token ? 'موجود' : 'غير موجود'}`);
+
+    if (!token) {
+        console.log("❌ التوكن غير موجود، تخطي...");
+        continue;
+    }
+    
 
     try {
         // استخدم نفس كود الإرسال الذي تستخدمه في الـ API الخاصة بك
