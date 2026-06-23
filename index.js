@@ -762,7 +762,7 @@ const patientRes = await pool.query('SELECT fcm_token FROM patients WHERE mobile
 
 console.log("تاريخ اليوم الذي يبحث عنه الكود هو:", egyptDate);
 // تشغيل يومي في تمام الساعة 10:00 صباحاً بتوقيت أم الدنيا (القاهرة)
-cron.schedule('5 2 * * *', async () => {
+cron.schedule('15 2 * * *', async () => {
     console.log("--- ⏰ [cron] بدء فحص وإرسال تذكيرات المواعيد لليوم الحالي ---");
     try {
         // استعلام لجلب الحجوزات القائمة لليوم مع توكنات المرضى واسم الطبيب
