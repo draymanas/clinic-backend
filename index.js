@@ -767,14 +767,14 @@ cron.schedule('30 0 * * *', async () => {
     try {
         // استعلام لجلب الحجوزات القائمة لليوم مع توكنات المرضى واسم الطبيب
         const query = `
-            SELECT a.id, a.patient_name, a.booking_date, a.fcm_token, d.name as doctor_name
-            FROM appointments a
-            LEFT JOIN doctors d ON a.doctor_id = d.id
-            WHERE a.status = 'pending' 
-              AND a.fcm_token IS NOT NULL 
-              AND a.fcm_token != ''
-              AND a.booking_date::text LIKE TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD') || '%'
-        `;
+    SELECT a.id, a.patient_name, a.booking_date, a.fcm_token, d.name as doctor_name
+    FROM appointments a
+    LEFT JOIN doctors d ON a.doctor_id = d.id
+    WHERE a.status = 'pending' 
+      AND a.fcm_token IS NOT NULL 
+      AND a.fcm_token != ''
+      AND TO_CHAR(a.booking_date, 'YYYY-MM-DD') = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')
+`;
         const result = await pool.query(query);
         console.log(`🔍 تم العثور على عدد (${result.rows.length}) حجوزات مفعّلة لليوم تستحق التذكير.`);
 
