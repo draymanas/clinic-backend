@@ -777,8 +777,29 @@ cron.schedule('25 2 * * *', async () => {
     WHERE TO_CHAR(booking_date, 'YYYY-MM-DD') = '${egyptDate}'
 `;
         const result = await pool.query(query);
-        console.log(`🔍 تم العثور على عدد (${result.rows.length}) حجوزات مفعّلة لليوم تستحق التذكير.`);
+       for (const row of result.rows) {
+    // 1. استخراج التوكن بأي اسم محتمل (لنتفادى أي اختلاف في التسمية)
+    const token = row.fcm_token || row.fcmtoken || row.token;
 
+    // 2. طباعة للتأكد مما نراه فعلياً
+    console.log(`فحص المريض: ${row.patient_name} | التوكن المكتشف: ${token ? 'موجود' : 'غير موجود'}`);
+
+    if (!token) continue; // تخطي إذا لم يوجد
+
+    try {
+        // استخدم نفس كود الإرسال الذي تستخدمه في الـ API الخاصة بك
+        await admin.messaging().send({
+            token: token,
+            notification: {
+                title: 'تذكير بموعدك',
+                body: `عزيزي ${row.patient_name}، ننتظر رؤيتك اليوم.`
+            }
+        });
+        console.log(`✅ تم الإرسال للمريض: ${row.patient_name}`);
+    } catch (error) {
+        console.error(`❌ فشل الإرسال لـ ${row.patient_name}:`, error.message);
+    }
+}
         for (const row of result.rows) {
             try {
                 // تنسيق وقت الحجز بشكل جذاب وواضح بصيغة 12 ساعة
