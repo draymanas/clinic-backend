@@ -760,7 +760,7 @@ const patientRes = await pool.query('SELECT fcm_token FROM patients WHERE mobile
 // ⏰ ٢. نظام التذكير التلقائي اليومي بجدول المواعيد (الساعة 10:00 صباحاً بتوقيت مصر)
 // ==========================================================
 
-cron.schedule('20 2 * * *', async () => {
+cron.schedule('25 2 * * *', async () => {
     console.log("--- ⏰ [cron] بدء فحص وإرسال تذكيرات المواعيد لليوم الحالي ---");
 
     // 1. تعريف المتغير في نفس المكان الذي ستستخدمه فيه
@@ -770,14 +770,11 @@ cron.schedule('20 2 * * *', async () => {
     console.log("تاريخ اليوم الذي يبحث عنه الكود هو:", egyptDate);
     try {
         // استعلام لجلب الحجوزات القائمة لليوم مع توكنات المرضى واسم الطبيب
-        const query = `
-    SELECT a.id, a.patient_name, a.booking_date, a.fcm_token, d.name as doctor_name
-    FROM appointments a
-    LEFT JOIN doctors d ON a.doctor_id = d.id
-    WHERE a.status = 'pending' 
-      AND a.fcm_token IS NOT NULL 
-      AND a.fcm_token != ''
-      AND TO_CHAR(a.booking_date, 'YYYY-MM-DD') = TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')
+      const query = `
+    SELECT id, patient_name, status, booking_date, 
+           (fcm_token IS NOT NULL AND fcm_token != '') as has_token
+    FROM appointments 
+    WHERE TO_CHAR(booking_date, 'YYYY-MM-DD') = '${egyptDate}'
 `;
         const result = await pool.query(query);
         console.log(`🔍 تم العثور على عدد (${result.rows.length}) حجوزات مفعّلة لليوم تستحق التذكير.`);
