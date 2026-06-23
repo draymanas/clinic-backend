@@ -760,10 +760,14 @@ const patientRes = await pool.query('SELECT fcm_token FROM patients WHERE mobile
 // ⏰ ٢. نظام التذكير التلقائي اليومي بجدول المواعيد (الساعة 10:00 صباحاً بتوقيت مصر)
 // ==========================================================
 
-console.log("تاريخ اليوم الذي يبحث عنه الكود هو:", egyptDate);
-// تشغيل يومي في تمام الساعة 10:00 صباحاً بتوقيت أم الدنيا (القاهرة)
-cron.schedule('15 2 * * *', async () => {
+cron.schedule('20 2 * * *', async () => {
     console.log("--- ⏰ [cron] بدء فحص وإرسال تذكيرات المواعيد لليوم الحالي ---");
+
+    // 1. تعريف المتغير في نفس المكان الذي ستستخدمه فيه
+    const egyptDate = new Date().toLocaleString("en-CA", { timeZone: "Africa/Cairo" }).split(",")[0];
+    
+    // طباعة التاريخ للـ Logs عشان نتأكد
+    console.log("تاريخ اليوم الذي يبحث عنه الكود هو:", egyptDate);
     try {
         // استعلام لجلب الحجوزات القائمة لليوم مع توكنات المرضى واسم الطبيب
         const query = `
