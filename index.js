@@ -760,71 +760,39 @@ const patientRes = await pool.query('SELECT fcm_token FROM patients WHERE mobile
 // ⏰ ٢. نظام التذكير التلقائي اليومي بجدول المواعيد (الساعة 10:00 صباحاً بتوقيت مصر)
 // ==========================================================
 
-cron.schedule('2 3 * * *', async () => {
+cron.schedule('26 3 * * *', async () => {
     console.log("--- ⏰ [cron] بدء فحص وإرسال تذكيرات المواعيد لليوم الحالي ---");
 
-    // 1. تعريف المتغير في نفس المكان الذي ستستخدمه فيه
     const egyptDate = new Date().toLocaleString("en-CA", { timeZone: "Africa/Cairo" }).split(",")[0];
     
-    // طباعة التاريخ للـ Logs عشان نتأكد
-    console.log("تاريخ اليوم الذي يبحث عنه الكود هو:", egyptDate);
     try {
-        // استعلام لجلب الحجوزات القائمة لليوم مع توكنات المرضى واسم الطبيب
-     const query = `
-    SELECT a.id, a.patient_name, a.fcm_token 
-    FROM appointments a
-    WHERE a.status = 'pending' 
-      AND a.fcm_token IS NOT NULL 
-      AND a.fcm_token != ''
-      AND TO_CHAR(a.booking_date, 'YYYY-MM-DD') = '${egyptDate}'
-`;
-        const result = await pool.query(query);
-    for (const row of result.rows) {
-    // 1. طباعة كل مفاتيح الصف لنعرف الاسم الدقيق الذي يراه الكود
-    console.log("مفاتيح الصف المتاحة:", Object.keys(row));
+        // استعلام شامل يجلب كافة البيانات المطلوبة
+        const query = `
+            SELECT a.id, a.patient_name, a.fcm_token, a.booking_date, d.name as doctor_name
+            FROM appointments a
+            LEFT JOIN doctors d ON a.doctor_id = d.id
+            WHERE a.status = 'pending' 
+              AND a.fcm_token IS NOT NULL 
+              AND a.fcm_token != ''
+              AND TO_CHAR(a.booking_date, 'YYYY-MM-DD') = '${egyptDate}'
+        `;
 
-    // 2. استخدم مفتاحاً ديناميكياً (نبحث عن أي مفتاح يحتوي على كلمة token)
-    const tokenKey = Object.keys(row).find(key => key.toLowerCase().includes('token'));
-    const token = tokenKey ? row[tokenKey] : null;
+        const { rows } = await pool.query(query);
+        console.log(`🔍 تم العثور على (${rows.length}) حجوزات تستحق التذكير.`);
 
-    console.log(`فحص المريض: ${row.patient_name} | التوكن المكتشف من الحقل (${tokenKey}): ${token ? 'موجود' : 'غير موجود'}`);
-
-    if (!token) {
-        console.log("❌ التوكن غير موجود، تخطي...");
-        continue;
-    }
-    
-
-    try {
-        // استخدم نفس كود الإرسال الذي تستخدمه في الـ API الخاصة بك
-        await admin.messaging().send({
-            token: token,
-            notification: {
-                title: 'تذكير بموعدك',
-                body: `عزيزي ${row.patient_name}، ننتظر رؤيتك اليوم.`
-            }
-        });
-        console.log(`✅ تم الإرسال للمريض: ${row.patient_name}`);
-    } catch (error) {
-        console.error(`❌ فشل الإرسال لـ ${row.patient_name}:`, error.message);
-    }
-}
-        for (const row of result.rows) {
+        for (const row of rows) {
             try {
-                // تنسيق وقت الحجز بشكل جذاب وواضح بصيغة 12 ساعة
+                // 1. تنسيق الوقت
                 const timeString = row.booking_date ? new Date(row.booking_date).toLocaleTimeString('ar-EG', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true
+                    hour: '2-digit', minute: '2-digit', hour12: true
                 }) : '';
 
-                const customBody = `عزيزي ${row.patient_name}، نذكرك بموعد حجزك اليوم بالعيادة مع دكتور ${row.doctor_name || 'الأخصائي'}${timeString ? ` الساعة ${timeString}` : ''}. يسعدنا حضورك في الموعد المحدد!`;
-
-                await getMessaging().send({
+                // 2. تجهيز الرسالة
+                const message = {
                     token: row.fcm_token,
                     notification: {
                         title: '⏰ تذكير بموعد حجزك اليوم',
-                        body: customBody
+                        body: `عزيزي ${row.patient_name}، نذكرك بموعد حجزك اليوم بالعيادة مع دكتور ${row.doctor_name || 'الأخصائي'}${timeString ? ` الساعة ${timeString}` : ''}. يسعدنا حضورك في الموعد المحدد!`
                     },
                     data: {
                         type: 'APPOINTMENT_REMINDER',
@@ -833,24 +801,19 @@ cron.schedule('2 3 * * *', async () => {
                     },
                     android: {
                         priority: 'high',
-                        notification: {
-                            channelId: 'high_importance_channel',
-                            clickAction: 'FLUTTER_NOTIFICATION_CLICK',
-                            sound: 'default'
-                        }
+                        notification: { channelId: 'high_importance_channel', sound: 'default' }
                     },
                     apns: {
-                        payload: {
-                            aps: {
-                                sound: 'default',
-                                badge: 1
-                            }
-                        }
+                        payload: { aps: { sound: 'default', badge: 1 } }
                     }
-                });
+                };
+
+                // 3. الإرسال (باستخدام دالة getMessaging المعتمدة)
+                await getMessaging().send(message);
                 console.log(`✅ تم إرسال تذكير ناجح للمريض: ${row.patient_name}`);
+                
             } catch (err) {
-                console.error(`❌ فشل إرسال التذكير للمريض ${row.patient_name} (التوكن قد يكون غير صالح):`, err.message);
+                console.error(`❌ فشل إرسال التذكير للمريض ${row.patient_name}:`, err.message);
             }
         }
     } catch (error) {
@@ -858,9 +821,8 @@ cron.schedule('2 3 * * *', async () => {
     }
 }, {
     scheduled: true,
-    timezone: "Africa/Cairo" // ضبط النطاق الزمني لجمهورية مصر العربية تماماً للتوافق
+    timezone: "Africa/Cairo"
 });
- 
 app.listen(PORT, () => {
     console.log(`
     🚀 ==========================================
