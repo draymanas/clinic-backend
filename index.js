@@ -760,7 +760,7 @@ const patientRes = await pool.query('SELECT fcm_token FROM patients WHERE mobile
 // ⏰ ٢. نظام التذكير التلقائي اليومي بجدول المواعيد (الساعة 10:00 صباحاً بتوقيت مصر)
 // ==========================================================
 
-cron.schedule('38 3 * * *', async () => {
+cron.schedule('10 10 * * *', async () => {
     console.log("--- ⏰ [cron] بدء فحص وإرسال تذكيرات المواعيد لليوم الحالي ---");
 
     const egyptDate = new Date().toLocaleString("en-CA", { timeZone: "Africa/Cairo" }).split(",")[0];
@@ -792,7 +792,7 @@ cron.schedule('38 3 * * *', async () => {
                     token: row.fcm_token,
                     notification: {
                         title: '⏰ تذكير بموعد حجزك اليوم',
-                        body: `عزيزي ${row.patient_name}، نذكرك بموعد حجزك اليوم بالعيادة مع دكتور ${row.doctor_name || 'الأخصائي'}${timeString ? ` الساعة ${timeString}` : ''}. يسعدنا حضورك في الموعد المحدد!`
+                        body: `عزيزي ${row.patient_name}، نذكرك بموعد حجزك اليوم بالعيادة مع دكتور ${row.doctor_name || 'الأخصائي'}. يسعدنا حضورك في الموعد المحدد!`
                     },
                     data: {
                         type: 'APPOINTMENT_REMINDER',
