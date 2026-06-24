@@ -25,35 +25,26 @@ initializeApp({
   credential: cert(serviceAccount)
 });
 
-
-
 console.log("✅ Firebase Admin initialized successfully!");
-
 // 3. التحقق (عشان السيرفر ميهنجش لو الملف مش مقروء)
 if (!supabaseUrl || !supabaseKey) {
   console.error("❌ خطأ: لم يتم العثور على بيانات Supabase في ملف .env");
   process.exit(1);
 }
-
-
 // --- 1. الإعدادات العامة ---
 app.use(cors());
 app.use(express.json());
-
 // إعداد مجلد الرفع (Uploads) للتأكد من وجوده
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
 }
-
 // جعل مجلد الصور متاحاً للوصول عبر الرابط
 app.use('/uploads', express.static(uploadDir));
-
 // إعدادات التخزين لـ Multer
 // التخزين في الذاكرة المؤقتة فقط (Memory Storage)
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
-
 // إعدادات الاتصال بـ PostgreSQL (تمت إزالة التكرار)
 const pool = new Pool({
   connectionString: "postgresql://postgres.jvaiadgohuvgzgmwqnom:Aioota2026as@aws-1-eu-central-1.pooler.supabase.com:5432/postgres",
@@ -61,14 +52,9 @@ const pool = new Pool({
     rejectUnauthorized: false
   }
 });
-
-
 // ==========================================
 // 🚀 كود السيرفر المصلح لخدمة الإشعارات (server.js)
 // ==========================================
- 
- 
-
 // 🔔 الـ API المصلح لإرسال الإشعارات الجماعية والفردية بالتوافق مع كروت الإرسال
 app.post('/api/send-bulk-notification', async (req, res) => {
     // توحيد الحقول المستلمة من طريقتي الإرسال (Dashboard أو NotificationsManager)
@@ -84,11 +70,9 @@ app.post('/api/send-bulk-notification', async (req, res) => {
     if (!title || !body) {
         return res.status(400).json({ error: "يرجى ملء كافة حقول العنوان ونص الإشعار تلقائياً" });
     }
-
     try {
         let query = '';
         let values = [];
-
         // تحديد الاستعلام المناسب لجمع التوكنات FCM المسجلة بناءً على رغبة الإرسال
         if (targetType === 'all_doctors') {
             query = "SELECT fcm_token FROM doctors WHERE fcm_token IS NOT NULL AND fcm_token != ''";
@@ -524,6 +508,23 @@ app.get('/doctor-appointments/:id', async (req, res) => {
         console.error(err.message);
         res.status(500).send("Server Error");
     }
+});
+
+// =========================================================
+// 🆕 أضف هذا الـ API الجديد لجلب سجل حجوزات المريض برقم هاتفه
+// =========================================================
+app.get('/api/patient-appointments/:mobile', async (req, res) => {
+  const { mobile } = req.params;
+  try {
+    const result = await pool.query(
+      'SELECT * FROM appointments WHERE mobile = $1 ORDER BY booking_date DESC, id DESC',
+      [mobile]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error fetching patient appointments:", err.message);
+    res.status(500).json({ error: "فشل جلب سجل الحجوزات للمريض" });
+  }
 });
 
 const sendBookingAlert = async (bookingData) => {
