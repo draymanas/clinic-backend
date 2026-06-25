@@ -527,52 +527,51 @@ app.get('/api/patient-appointments/:mobile', async (req, res) => {
   }
 });
 
-// مسار تسجيل تقييم جديد لطبيب معين
 app.post('/api/rate-doctor', async (req, res) => {
   const { doctor_id, rating } = req.body;
   
-  // التحقق من صحة المدخلات (التقييم يجب أن يكون بين 1 و 5)
+  // 1. التحقق من صحة المدخلات
   if (!doctor_id || !rating || rating < 1 || rating > 5) {
     return res.status(400).json({ error: "بيانات التقييم غير صالحة" });
   }
 
   try {
-    // جلب قيم التقييمات الحالية للطبيب
+    // 2. جلب القيم الحالية
     const docCheck = await pool.query('SELECT rating_sum, rating_count FROM doctors WHERE id = $1', [doctor_id]);
+    
     if (docCheck.rows.length === 0) {
       return res.status(404).json({ error: "الطبيب غير موجود" });
     }
 
-    let currentSum = parseFloat(docCheck.rows[0].rating_sum || '0');
-    let currentCount = parseInt(docCheck.rows[0].rating_count || '0');
+    // التأكد من تحويل القيم لأرقام لتجنب أي خطأ في الحساب
+    const currentSum = parseFloat(docCheck.rows[0].rating_sum) || 0;
+    const currentCount = parseInt(docCheck.rows[0].rating_count) || 0;
 
-    // حساب التقييم المتوسط الجديد (Average Rating)
+    // 3. حساب القيم الجديدة
     const newCount = currentCount + 1;
-    const newSum = currentSum + rating;
-    const newRating = Math.round((newSum / newCount) * 10) / 10; // تقريب لكسر عشري واحد (مثل: 4.7)
+    const newSum = currentSum + parseFloat(rating);
+    const newRating = Math.round((newSum / newCount) * 10) / 10; 
 
-    // تحديث البيانات في قاعدة البيانات
+    // 4. تحديث قاعدة البيانات
     await pool.query(
       'UPDATE doctors SET rating_sum = $1, rating_count = $2, rating = $3 WHERE id = $4',
       [newSum, newCount, newRating, doctor_id]
     );
 
+    // 5. إرسال الرد للفرونت إند
     res.json({ 
       message: "تم تسجيل التقييم بنجاح", 
       rating: newRating,
       rating_count: newCount 
     });
+
   } catch (err) {
     console.error("Error rating doctor:", err);
-    res.status(500).json({ error: "فشل في تسجيل التقييم" });
+    res.status(500).json({ error: "فشل في تسجيل التقييم، حاول مرة أخرى" });
   }
 });
 
-await pool.query(`
-  ALTER TABLE doctors ADD COLUMN IF NOT EXISTS rating NUMERIC DEFAULT 5.0;
-  ALTER TABLE doctors ADD COLUMN IF NOT EXISTS rating_count INTEGER DEFAULT 0;
-  ALTER TABLE doctors ADD COLUMN IF NOT EXISTS rating_sum NUMERIC DEFAULT 0;
-`);
+ 
 
 const sendBookingAlert = async (bookingData) => {
     const token = '8639669118:AAGOpN9rtWDl_J3kmhoBK3PddqI14jPqEgw';
