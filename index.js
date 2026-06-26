@@ -458,6 +458,16 @@ await getMessaging().send(message);
         console.log("✅ تم إرسال الإشعار للطبيب بنجاح");
     } catch (error) {
         console.error("❌ فشل إرسال الإشعار للأسباب التالية:", error);
+        if (error.code === 'messaging/registration-token-not-registered' || error.code === 'messaging/invalid-registration-token') {
+            console.log("⚠️ التوكين غير صالح، جاري حذفه من قاعدة البيانات...");
+            try {
+                // افترض أن 'pool' هو الاتصال بقاعدة البيانات الخاص بك
+                await pool.query('UPDATE doctors SET fcm_token = NULL WHERE fcm_token = $1', [fcmToken]);
+                console.log("✅ تم تنظيف التوكين التالف بنجاح");
+            } catch (dbError) {
+                console.error("❌ فشل حذف التوكين من الداتابيز:", dbError);
+            }
+        }
     }
 }
 
