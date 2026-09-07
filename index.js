@@ -195,15 +195,25 @@ app.get('/sitemap.xml', async (req, res) => {
     ];
 
     // إضافة جميع صفحات الأطباء النشطين
-    doctors.forEach((doctor) => {
-      urls.push(`
-        <url>
-          <loc>${baseUrl}/dr/${doctor.id}</loc>
-          <changefreq>weekly</changefreq>
-          <priority>0.8</priority>
-        </url>
-      `);
-    });
+   // إضافة جميع صفحات الأطباء النشطين مع الاسم والتخصص المتوافق مع Supabase
+doctors.forEach((doctor) => {
+  // استخدام الاسماء الفعلية للاعمدة: id, name, specialty
+  const rawSlug = `${doctor.id}-${doctor.name}-${doctor.specialty || ''}`;
+  
+  // تنظيف النص واستبدال المسافات بشرطات لتناسب معيار الروابط (URL Friendly)
+  const doctorSlug = rawSlug
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w\u0600-\u06FF\-]/g, ''); // الحفاظ على الحروف العربية والانجليزية والأرقام والشرطات
+
+  urls.push(`
+    <url>
+      <loc>${baseUrl}/dr/${doctorSlug}</loc>
+      <changefreq>weekly</changefreq>
+      <priority>0.8</priority>
+    </url>
+  `);
+});
 
     const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
