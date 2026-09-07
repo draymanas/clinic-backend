@@ -157,8 +157,18 @@ app.post('/api/send-bulk-notification', async (req, res) => {
 // ===============================
 // Dynamic XML Sitemap (SEO Friendly with Doctor Names & Specialties)
 // ===============================
+// ===============================
+// Dynamic XML Sitemap (Doctor Profiles + Specialty & City Category Pages)
+// ===============================
 
-// دالة تنظيف وتجهيز الرابط الصديق لمحركات البحث
+const slugifyArabic = (text) => {
+  if (!text) return '';
+  return text
+    .trim()
+    .replace(/[\/\#\?\&\\\:\*\"\'\<\>\|\(\)\,\.]/g, '')
+    .replace(/\s+/g, '-');
+};
+
 const generateDoctorSlug = (doc) => {
   if (!doc || !doc.id) return '';
   const titlePart = doc.title ? `${doc.title} ` : '';
@@ -172,10 +182,10 @@ const generateDoctorSlug = (doc) => {
 
 app.get('/sitemap.xml', async (req, res) => {
   try {
-    // 1. جلب id واسم وتخصص ولقب كل طبيب نشط
+    // 1. جلب بيانات الأطباء النشطين
     const { data: doctors, error } = await supabase
       .from('doctors')
-      .select('id, name, title, specialty')
+      .select('id, name, title, specialty, city, area')
       .eq('is_active', true)
       .order('id', { ascending: true });
 
@@ -196,9 +206,9 @@ app.get('/sitemap.xml', async (req, res) => {
       `,
       `
       <url>
-        <loc>${baseUrl}/dr_ayman_aguib</loc>
-        <changefreq>monthly</changefreq>
-        <priority>0.8</priority>
+        <loc>${baseUrl}/search</loc>
+        <changefreq>daily</changefreq>
+        <priority>0.9</priority>
       </url>
       `,
       `
@@ -210,8 +220,42 @@ app.get('/sitemap.xml', async (req, res) => {
       `
     ];
 
-    // 2. إضافة روابط الأطباء بالصيغة الاحترافية الجديدة الكاملة (معرف + اسم + تخصص)
+    // 2. جمع صفحات التخصصات والمدن والمناطق الفعلية الفريدة
+    const categoryPages = new Set();
+
     if (doctors && doctors.length > 0) {
+      doctors.forEach((doc) => {
+        if (doc.specialty) {
+          const specSlug = encodeURIComponent(slugifyArabic(doc.specialty));
+          // صفحة التخصص العام (مثل: /doctors/مخ-وأعصاب)
+          categoryPages.add(`/doctors/${specSlug}`);
+
+          if (doc.city) {
+            const citySlug = encodeURIComponent(slugifyArabic(doc.city));
+            // صفحة التخصص في المحافظة (مثل: /doctors/مخ-وأعصاب/الجيزة)
+            categoryPages.add(`/doctors/${specSlug}/${citySlug}`);
+
+            if (doc.area) {
+              const areaSlug = encodeURIComponent(slugifyArabic(doc.area));
+              // صفحة التخصص في المنطقة (مثل: /doctors/مخ-وأعصاب/الجيزة/6-أكتوبر)
+              categoryPages.add(`/doctors/${specSlug}/${citySlug}/${areaSlug}`);
+            }
+          }
+        }
+      });
+
+      // إضافة صفحات التصنيفات لخريطة الموقع بأولوية عالية (0.9)
+      categoryPages.forEach((path) => {
+        urls.push(`
+        <url>
+          <loc>${baseUrl}${path}</loc>
+          <changefreq>weekly</changefreq>
+          <priority>0.9</priority>
+        </url>
+        `);
+      });
+
+      // 3. إضافة روابط صفحات الأطباء الشخصية
       doctors.forEach((doctor) => {
         const docSlug = generateDoctorSlug(doctor);
         urls.push(`
