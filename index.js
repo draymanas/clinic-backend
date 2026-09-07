@@ -151,6 +151,74 @@ app.post('/api/send-bulk-notification', async (req, res) => {
 
 
 
+// ===============================
+// Dynamic XML Sitemap
+// ===============================
+
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const { data: doctors, error } = await supabase
+      .from('doctors')
+      .select('id')
+      .eq('is_active', true)
+      .order('id', { ascending: true });
+
+    if (error) {
+      console.error('Sitemap doctors error:', error);
+      return res.status(500).send('Error generating sitemap');
+    }
+
+    const baseUrl = 'https://www.doctoreg.online';
+
+    const urls = [
+      `
+      <url>
+        <loc>${baseUrl}/</loc>
+        <changefreq>daily</changefreq>
+        <priority>1.0</priority>
+      </url>
+      `,
+      `
+      <url>
+        <loc>${baseUrl}/dr_ayman_aguib</loc>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+      </url>
+      `,
+      `
+      <url>
+        <loc>${baseUrl}/join</loc>
+        <changefreq>monthly</changefreq>
+        <priority>0.5</priority>
+      </url>
+      `
+    ];
+
+    // إضافة جميع صفحات الأطباء النشطين
+    doctors.forEach((doctor) => {
+      urls.push(`
+        <url>
+          <loc>${baseUrl}/dr/${doctor.id}</loc>
+          <changefreq>weekly</changefreq>
+          <priority>0.8</priority>
+        </url>
+      `);
+    });
+
+    const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.join('\n')}
+</urlset>`;
+
+    res.set('Content-Type', 'application/xml; charset=utf-8');
+    res.send(sitemap);
+
+  } catch (error) {
+    console.error('Sitemap generation error:', error);
+    res.status(500).send('Error generating sitemap');
+  }
+});
+
 // --- 2. قسم الأطباء (Doctors) ---
 
 app.get('/doctors', async (req, res) => {
