@@ -195,16 +195,25 @@ app.get('/sitemap.xml', async (req, res) => {
     ];
 
     // إضافة جميع صفحات الأطباء النشطين
-   // إضافة جميع صفحات الأطباء النشطين مع الاسم والتخصص المتوافق مع Supabase
+  // 1. تأكد أن الـ select يطلب الأعمدة الثلاثة مباشرة
+const { data: doctors, error } = await supabase
+  .from('doctors') // أو اسم جدول الأطباء لديك
+  .select('id, name, specialty'); // هنا تأكيد جلب الـ name والـ specialty
+
+if (error) {
+  console.error('خطأ في جلب الأطباء للسايت ماب:', error);
+  return;
+}
+
+// 2. كود تكوين الروابط بالأسماء الفعلية الصحيحة
 doctors.forEach((doctor) => {
-  // استخدام الاسماء الفعلية للاعمدة: id, name, specialty
-  const rawSlug = `${doctor.id}-${doctor.name}-${doctor.specialty || ''}`;
+  // استخدام الأعمدة الفعلية من قاعدة البيانات مباشرة
+  const rawSlug = `${doctor.id}-${doctor.name}-${doctor.specialty}`;
   
-  // تنظيف النص واستبدال المسافات بشرطات لتناسب معيار الروابط (URL Friendly)
   const doctorSlug = rawSlug
     .trim()
     .replace(/\s+/g, '-')
-    .replace(/[^\w\u0600-\u06FF\-]/g, ''); // الحفاظ على الحروف العربية والانجليزية والأرقام والشرطات
+    .replace(/[^\w\u0600-\u06FF\-]/g, '');
 
   urls.push(`
     <url>
