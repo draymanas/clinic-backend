@@ -154,12 +154,28 @@ app.post('/api/send-bulk-notification', async (req, res) => {
 // ===============================
 // Dynamic XML Sitemap
 // ===============================
+// ===============================
+// Dynamic XML Sitemap (SEO Friendly with Doctor Names & Specialties)
+// ===============================
+
+// دالة تنظيف وتجهيز الرابط الصديق لمحركات البحث
+const generateDoctorSlug = (doc) => {
+  if (!doc || !doc.id) return '';
+  const titlePart = doc.title ? `${doc.title} ` : '';
+  const rawText = `دكتور ${doc.name || ''} ${titlePart}${doc.specialty || ''}`.trim();
+  const cleanSlug = rawText
+    .replace(/[\/\#\?\&\\\:\*\"\'\<\>\|\(\)\,\.]/g, '')
+    .trim()
+    .replace(/\s+/g, '-');
+  return `${doc.id}-${encodeURIComponent(cleanSlug)}`;
+};
 
 app.get('/sitemap.xml', async (req, res) => {
   try {
+    // 1. جلب id واسم وتخصص ولقب كل طبيب نشط
     const { data: doctors, error } = await supabase
       .from('doctors')
-      .select('id')
+      .select('id, name, title, specialty')
       .eq('is_active', true)
       .order('id', { ascending: true });
 
@@ -194,35 +210,19 @@ app.get('/sitemap.xml', async (req, res) => {
       `
     ];
 
-    // إضافة جميع صفحات الأطباء النشطين
-  // 1. تأكد أن الـ select يطلب الأعمدة الثلاثة مباشرة
-const { data: doctors, error } = await supabase
-  .from('doctors') // أو اسم جدول الأطباء لديك
-  .select('id, name, specialty'); // هنا تأكيد جلب الـ name والـ specialty
-
-if (error) {
-  console.error('خطأ في جلب الأطباء للسايت ماب:', error);
-  return;
-}
-
-// 2. كود تكوين الروابط بالأسماء الفعلية الصحيحة
-doctors.forEach((doctor) => {
-  // استخدام الأعمدة الفعلية من قاعدة البيانات مباشرة
-  const rawSlug = `${doctor.id}-${doctor.name}-${doctor.specialty}`;
-  
-  const doctorSlug = rawSlug
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/[^\w\u0600-\u06FF\-]/g, '');
-
-  urls.push(`
-    <url>
-      <loc>${baseUrl}/dr/${doctorSlug}</loc>
-      <changefreq>weekly</changefreq>
-      <priority>0.8</priority>
-    </url>
-  `);
-});
+    // 2. إضافة روابط الأطباء بالصيغة الاحترافية الجديدة الكاملة (معرف + اسم + تخصص)
+    if (doctors && doctors.length > 0) {
+      doctors.forEach((doctor) => {
+        const docSlug = generateDoctorSlug(doctor);
+        urls.push(`
+        <url>
+          <loc>${baseUrl}/dr/${docSlug}</loc>
+          <changefreq>weekly</changefreq>
+          <priority>0.8</priority>
+        </url>
+        `);
+      });
+    }
 
     const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -237,7 +237,6 @@ ${urls.join('\n')}
     res.status(500).send('Error generating sitemap');
   }
 });
-
 // --- 2. قسم الأطباء (Doctors) ---
 
 app.get('/doctors', async (req, res) => {
