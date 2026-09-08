@@ -647,7 +647,7 @@ app.get('/d/:slugOrId', async (req, res, next) => {
 });
 
 // 🌟 2. مسار روابط الأطباء الأساسية لدعم زواحف فيسبوك وواتساب
-app.get(['/dr/:slugOrId*', '/doctor/:slugOrId*'], async (req, res, next) => {
+app.get(['/dr/:slugOrId', '/doctor/:slugOrId'], async (req, res, next) => {
   const rawParam = req.params.slugOrId || '';
   const id = String(rawParam).split('-')[0] || rawParam;
 
