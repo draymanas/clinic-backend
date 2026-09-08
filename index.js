@@ -611,11 +611,9 @@ function injectDoctorMetaTags(html, doctor, reqId) {
   return updatedHtml.replace('</head>', `${metaTags}\n  </head>`);
 }
 
-// 🌟 1. مسار الرابط فائق الاختصار للتعليقات: /d/:id
-// للزوار العاديين: 301 Redirect فوري لرابط الـ SEO الكامل
-// لزواحف فيسبوك وواتساب: حقن الكارت الرسمي فوراً
-app.get(['/d/:slugOrId*'], async (req, res, next) => {
-  const rawParam = req.params.slugOrId || '';
+app.get(['/d/:slugOrId', '/d/:slugOrId*'], async (req, res, next) => {
+  // أو الطريقة الأدق لاستخراج القيمة بغض النظر عن النجمة:
+  const rawParam = req.params.slugOrId || req.params[0] || '';
   const id = String(rawParam).split('-')[0] || rawParam;
 
   try {
@@ -649,7 +647,7 @@ app.get(['/d/:slugOrId*'], async (req, res, next) => {
 });
 
 // 🌟 2. مسار روابط الأطباء الأساسية لدعم زواحف فيسبوك وواتساب
-app.get(['/dr/:slugOrId*', '/doctor/:slugOrId*'], async (req, res, next) => {
+app.get(['/dr/:slugOrId', '/dr/:slugOrId*', '/doctor/:slugOrId', '/doctor/:slugOrId*'], async (req, res, next) => {
   const rawParam = req.params.slugOrId || '';
   const id = String(rawParam).split('-')[0] || rawParam;
 
