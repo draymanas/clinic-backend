@@ -550,7 +550,128 @@ app.get('/doctor-direct/:id', async (req, res) => {
     }
 });
 
+// =========================================================================
+// 🌟 دوال توليد الروابط وحقن كروت فيسبوك وواتساب (Social Meta & SEO)
+// =========================================================================
 
+// دالة توليد مسار الـ SEO العربي الكامل للطبيب
+function getDoctorSeoPath(doctor, fallbackId) {
+  const docId = doctor.id || fallbackId;
+  const name = doctor.name || '';
+  const title = doctor.title ? `${doctor.title} ` : '';
+  const specialty = doctor.specialty || '';
+  const city = doctor.city ? `-${doctor.city}` : '';
+  const area = doctor.area ? `-${doctor.area}` : '';
+  const rawText = `${name}-${title}${specialty}${city}${area}`.trim();
+  const cleanSlug = rawText
+    .replace(/[\/\#\?\&\\\:\*\"\'\<\>\|\(\)\,\.]/g, '')
+    .trim()
+    .replace(/\s+/g, '-');
+  return cleanSlug ? `/dr/${docId}-${encodeURIComponent(cleanSlug)}` : `/dr/${docId}`;
+}
+
+// دالة حقن وسوم الـ Open Graph لكروت Facebook و WhatsApp الرسمية بدون أرقام
+function injectDoctorMetaTags(html, doctor, reqId) {
+  const doctorName = doctor.name || 'طبيب معتمد';
+  const specialty = doctor.specialty || 'استشاري متخصص';
+  const titlePrefix = doctor.title ? `${doctor.title} ` : 'طبيب استشاري ';
+  const city = doctor.city || '';
+  const area = doctor.area || '';
+  const locationText = [area, city].filter(Boolean).join(' – ') || 'مصر';
+  const doctorFee = doctor.fee ? `سعر الكشف: ${doctor.fee} ج.م` : 'حجز موعد مسبق';
+  const doctorPhoto = doctor.image_url || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=1200&h=630&auto=format&fit=crop&q=80';
+  const canonicalUrl = `https://www.doctoreg.online${getDoctorSeoPath(doctor, reqId)}`;
+
+  const ogTitle = `دكتور. ${doctorName} | ${titlePrefix}${specialty}`;
+  // وصف احترافي بدون أي أرقام هواتف لضمان فتح صفحة الطبيب الشخصية
+  const ogDescription = `📍 العيادة: ${locationText} | 💰 ${doctorFee} | 📅 احجز موعدك الآن مباشرة عبر صفحة الطبيب الرسمية بدون وسيط أو رسوم إضافية.`;
+
+  let updatedHtml = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${ogTitle} | منصة دكتور</title>`);
+
+  const metaTags = `
+    <meta name="description" content="${ogDescription}" />
+    <meta property="og:title" content="${ogTitle}" />
+    <meta property="og:description" content="${ogDescription}" />
+    <meta property="og:image" content="${doctorPhoto}" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:url" content="${canonicalUrl}" />
+    <meta property="og:type" content="profile" />
+    <meta property="og:site_name" content="منصة دكتور" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${ogTitle}" />
+    <meta name="twitter:description" content="${ogDescription}" />
+    <meta name="twitter:image" content="${doctorPhoto}" />
+  `;
+
+  updatedHtml = updatedHtml.replace(/<meta\s+property=["']og:[^>]+>/gi, '');
+  updatedHtml = updatedHtml.replace(/<meta\s+name=["']twitter:[^>]+>/gi, '');
+  updatedHtml = updatedHtml.replace(/<meta\s+name=["']description["'][^>]+>/gi, '');
+
+  return updatedHtml.replace('</head>', `${metaTags}\n  </head>`);
+}
+
+// 🌟 1. مسار الرابط فائق الاختصار للتعليقات: /d/:id
+// للزوار العاديين: 301 Redirect فوري لرابط الـ SEO الكامل
+// لزواحف فيسبوك وواتساب: حقن الكارت الرسمي فوراً
+app.get(['/d/:slugOrId*'], async (req, res, next) => {
+  const rawParam = req.params.slugOrId || '';
+  const id = String(rawParam).split('-')[0] || rawParam;
+
+  try {
+    const { data: doctor } = await supabase.from('doctors').select('*').eq('id', parseInt(id) || id).single();
+    const docData = doctor || { id, name: 'طبيب معتمد' };
+
+    const userAgent = (req.headers['user-agent'] || '').toLowerCase();
+    const isCrawler = /facebookexternalhit|facebot|twitterbot|whatsapp|telegrambot|linkedinbot|slackbot|discordbot/i.test(userAgent);
+
+    // إذا كان زائراً بشرياً عادياً: تحويله فوراً إلى رابط الـ SEO الكامل
+    if (!isCrawler) {
+      const seoPath = getDoctorSeoPath(docData, id);
+      return res.redirect(301, seoPath);
+    }
+
+    // إذا كان زاحف فيسبوك أو واتساب: إرسال الكارت
+    let htmlPath = path.join(__dirname, 'dist', 'index.html');
+    if (!fs.existsSync(htmlPath)) {
+      htmlPath = path.join(__dirname, 'index.html');
+    }
+
+    if (fs.existsSync(htmlPath)) {
+      const rawHtml = fs.readFileSync(htmlPath, 'utf-8');
+      const customHtml = injectDoctorMetaTags(rawHtml, docData, id);
+      return res.status(200).send(customHtml);
+    }
+  } catch (err) {
+    console.error('Error in /d/ route:', err);
+  }
+  next();
+});
+
+// 🌟 2. مسار روابط الأطباء الأساسية لدعم زواحف فيسبوك وواتساب
+app.get(['/dr/:slugOrId*', '/doctor/:slugOrId*'], async (req, res, next) => {
+  const rawParam = req.params.slugOrId || '';
+  const id = String(rawParam).split('-')[0] || rawParam;
+
+  try {
+    const { data: doctor } = await supabase.from('doctors').select('*').eq('id', parseInt(id) || id).single();
+    const docData = doctor || { id, name: 'طبيب معتمد' };
+
+    let htmlPath = path.join(__dirname, 'dist', 'index.html');
+    if (!fs.existsSync(htmlPath)) {
+      htmlPath = path.join(__dirname, 'index.html');
+    }
+
+    if (fs.existsSync(htmlPath)) {
+      const rawHtml = fs.readFileSync(htmlPath, 'utf-8');
+      const customHtml = injectDoctorMetaTags(rawHtml, docData, id);
+      return res.status(200).send(customHtml);
+    }
+  } catch (err) {
+    console.error('Error in /dr/ meta:', err);
+  }
+  next();
+});
 
 
 app.post('/book-appointment', async (req, res) => {
