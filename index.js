@@ -612,9 +612,10 @@ function injectDoctorMetaTags(html, doctor, reqId) {
 }
 
 // 🌟 1. مسار الرابط فائق الاختصار للتعليقات
-app.get('/d/*', async (req, res, next) => {
-  // req.params[0] سيحتوي على كل ما يأتي بعد /d/ سواء كان ID أو Slug طويل
-  const rawParam = req.params[0] || '';
+// استخدام تعبير نمطي صريح يلتقط /د/ وأي شيء بعدها دون أخطاء
+app.get(/^\/d\/.+/, async (req, res, next) => {
+  // استخراج المسار الكامل بعد /d/ من الـ URL مباشرة
+  const rawParam = req.path.replace('/d/', '');
   const id = String(rawParam).split('-')[0] || rawParam;
 
   try {
