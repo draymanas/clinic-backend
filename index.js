@@ -630,8 +630,21 @@ app.get(['/d/:slugOrId', '/ayman', '/d/ayman'], async (req, res, next) => {
     const titlePrefix = "استشاري ";
     const specialty = "المخ والأعصاب والعمود الفقري";
     // رابط صورتك المعتمدة للكارت (نفس الصورة التي ظهرت بنجاح في فرع أكتوبر)
-    const doctorPhoto = "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=1200&h=630&auto=format&fit=crop&q=80";
-    const fullSeoUrl = `https://www.doctoreg.online/dr/${encodeURIComponent("دكتور-ايمن-عجيب-استشاري-مخ-وأعصاب-وعمود-فقري")}`;
+   // 🌟 جلب صورتك الشخصية الحقيقية من الطبيب رقم 40 في قاعدة البيانات
+    let doctorPhoto = '';
+    try {
+      const aymanDb = await pool.query('SELECT image_url FROM doctors WHERE id = 40 LIMIT 1');
+      if (aymanDb.rows && aymanDb.rows[0]?.image_url) {
+        doctorPhoto = aymanDb.rows[0].image_url;
+      }
+    } catch (e) {
+      console.warn("Could not fetch ayman photo from DB:", e.message);
+    }
+
+    if (!doctorPhoto) {
+      const { data } = await supabase.from('doctors').select('image_url').eq('id', 40).maybeSingle();
+      if (data?.image_url) doctorPhoto = data.image_url;
+    } const fullSeoUrl = `https://www.doctoreg.online/dr/${encodeURIComponent("دكتور-ايمن-عجيب-استشاري-مخ-وأعصاب-وعمود-فقري")}`;
 
     const ogTitle = `دكتور ${doctorName} | ${titlePrefix}${specialty}`;
     const ogDescription = `📍 عيادات د. أيمن عجيب لجراحة المخ والأعصاب والعمود الفقري (فرع 6 أكتوبر - فرع شبرا). احجز موعدك أو أرسل استشارتك الطبية مباشرة.`;
