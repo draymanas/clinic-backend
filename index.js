@@ -901,7 +901,10 @@ const servicesMetaMap = {
   },
 };
 
-app.get('/service/:serviceId', async (req, res, next) => {
+// =========================================================================
+// 🌟 مسار مشاركة المقالات والخدمات فائق الاختصار والجمال: /s/:serviceId
+// =========================================================================
+app.get(['/s/:serviceId', '/service/:serviceId'], async (req, res, next) => {
   const serviceId = req.params.serviceId;
   const userAgent = (req.headers['user-agent'] || '').toLowerCase();
   const isCrawler = /facebookexternalhit|facebot|twitterbot|whatsapp|telegrambot|linkedinbot|slackbot|discordbot/i.test(userAgent);
@@ -912,7 +915,7 @@ app.get('/service/:serviceId', async (req, res, next) => {
     image: 'https://www.doctoreg.online/spine-surgery.png'
   };
 
-  // 🌟 إذا كان روبوت فيسبوك أو واتساب: نرسل له كارت المقال وصورته وعنوانه بالعربي
+  // 1. إذا كان زاحف فيسبوك أو واتساب: إرسال الكارت العربي والصورة فوراً
   if (isCrawler) {
     const canonicalUrl = `https://www.doctoreg.online/service/${serviceId}`;
     const crawlerHtml = `<!DOCTYPE html>
@@ -945,8 +948,8 @@ app.get('/service/:serviceId', async (req, res, next) => {
     return res.status(200).send(crawlerHtml);
   }
 
-  // 🌟 إذا كان زائراً حقيقياً: دعه يمر لـ Vercel ليفتح صفحة المقال التفاعلية
-  next();
+  // 2. إذا كان زائراً حقيقياً في المتصفح: نقله فوراً لرابط المقال على موقعك
+  return res.redirect(301, `https://www.doctoreg.online/service/${serviceId}`);
 });
 
 app.post('/book-appointment', async (req, res) => {
