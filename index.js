@@ -612,13 +612,70 @@ function injectDoctorMetaTags(html, doctor, reqId) {
 }
 
 // 🌟 1. مسار الرابط فائق الاختصار للتعليقات
-// 🌟 1. مسار الرابط فائق الاختصار للتعليقات (مُصلح لفيسبوك 100%)
-app.get('/d/:slugOrId', async (req, res, next) => {
-  const rawParam = req.params.slugOrId || '';
+// // =========================================================================
+// 🌟 1. مسار الروابط المختصرة للتعليقات والسوشيال ميديا (شامل د. أيمن عجيب + جميع الأطباء)
+// =========================================================================
+app.get(['/d/:slugOrId', '/ayman', '/d/ayman'], async (req, res, next) => {
+  const rawParam = req.params.slugOrId || 'ayman';
   const id = String(rawParam).split('-')[0] || rawParam;
 
+  const userAgent = (req.headers['user-agent'] || '').toLowerCase();
+  const isCrawler = /facebookexternalhit|facebot|twitterbot|whatsapp|telegrambot|linkedinbot|slackbot|discordbot/i.test(userAgent);
+
+  // -------------------------------------------------------------------------
+  // 🌟 أ) إذا كان المطلوب هو البروفايل الشخصي لدكتور أيمن عجيب (/d/ayman أو /ayman)
+  // -------------------------------------------------------------------------
+  if (id.toLowerCase() === 'ayman' || req.path.toLowerCase().includes('ayman')) {
+    const doctorName = "أيمن عجيب";
+    const titlePrefix = "استشاري ";
+    const specialty = "المخ والأعصاب والعمود الفقري";
+    // رابط صورتك المعتمدة للكارت (نفس الصورة التي ظهرت بنجاح في فرع أكتوبر)
+    const doctorPhoto = "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=1200&h=630&auto=format&fit=crop&q=80";
+    const fullSeoUrl = `https://www.doctoreg.online/dr/${encodeURIComponent("دكتور-ايمن-عجيب-استشاري-مخ-وأعصاب-وعمود-فقري")}`;
+
+    const ogTitle = `دكتور ${doctorName} | ${titlePrefix}${specialty}`;
+    const ogDescription = `📍 عيادات د. أيمن عجيب لجراحة المخ والأعصاب والعمود الفقري (فرع 6 أكتوبر - فرع شبرا). احجز موعدك أو أرسل استشارتك الطبية مباشرة.`;
+
+    // إذا كان الطالب زاحف سوشيال ميديا (فيسبوك / واتساب):
+    if (isCrawler) {
+      const crawlerHtml = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>${ogTitle}</title>
+  <meta name="description" content="${ogDescription}" />
+  <meta property="og:title" content="${ogTitle}" />
+  <meta property="og:description" content="${ogDescription}" />
+  <meta property="og:image" content="${doctorPhoto}" />
+  <meta property="og:image:secure_url" content="${doctorPhoto}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:url" content="https://www.doctoreg.online/d/ayman" />
+  <meta property="og:type" content="profile" />
+  <meta property="og:site_name" content="منصة دكتور" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${ogTitle}" />
+  <meta name="twitter:description" content="${ogDescription}" />
+  <meta name="twitter:image" content="${doctorPhoto}" />
+</head>
+<body>
+  <h1>${ogTitle}</h1>
+  <p>${ogDescription}</p>
+</body>
+</html>`;
+
+      res.set('Content-Type', 'text/html; charset=utf-8');
+      return res.status(200).send(crawlerHtml);
+    }
+
+    // إذا كان زائراً حقيقياً في المتصفح: تحويل 301 إلى الرابط العربي الكامل للـ SEO
+    return res.redirect(301, fullSeoUrl);
+  }
+
+  // -------------------------------------------------------------------------
+  // 🌟 ب) إذا كان المطلوب أي طبيب آخر عبر الـ ID الرقمي (/d/40, /d/1258...)
+  // -------------------------------------------------------------------------
   try {
-    // 1. جلب بيانات الطبيب من قاعدة البيانات
     let docData = null;
     try {
       const dbRes = await pool.query('SELECT * FROM doctors WHERE id = $1 LIMIT 1', [parseInt(id) || id]);
@@ -642,16 +699,12 @@ app.get('/d/:slugOrId', async (req, res, next) => {
     const city = docData.city || '';
     const area = docData.area || '';
     const locationText = [area, city].filter(Boolean).join(' – ') || 'مصر';
-    const doctorFee = docData.fee ? `سعر الكشف: ${docData.fee} ج.م` : 'محدد بالعيادة';
     const doctorPhoto = docData.image_url || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=1200&h=630&auto=format&fit=crop&q=80';
 
-    const userAgent = (req.headers['user-agent'] || '').toLowerCase();
-    const isCrawler = /facebookexternalhit|facebot|twitterbot|whatsapp|telegrambot|linkedinbot|slackbot|discordbot/i.test(userAgent);
-
-    // 🌟 أ) إذا كان الطالب زاحف فيسبوك أو واتساب: نرسل له كارت الطبيب وصورته فوراً
+    // إذا كان زاحف فيسبوك أو واتساب: إرسال الكارت بدون سعر الكشف
     if (isCrawler) {
       const ogTitle = `دكتور. ${doctorName} | ${titlePrefix}${specialty}`;
-      const ogDescription = `📍 العيادة: ${locationText} | 📅 احجز موعدك الآن مباشرة عبر صفحة الطبيب الرسمية بدون وسيط.`;
+      const ogDescription = `📍 العيادة: ${locationText} | 📅 احجز موعدك الآن مباشرة عبر صفحة الطبيب الرسمية وتعرف على المواعيد المتاحة.`;
 
       const crawlerHtml = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -683,7 +736,7 @@ app.get('/d/:slugOrId', async (req, res, next) => {
       return res.status(200).send(crawlerHtml);
     }
 
-    // 🌟 ب) إذا كان زائراً حقيقياً في المتصفح: تحويل 301 إلى رابط الـ SEO الكامل
+    // إذا كان زائراً حقيقياً في المتصفح: تحويل 301 إلى رابط الـ SEO العربي الكامل
     const seoPath = getDoctorSeoPath(docData, id);
     return res.redirect(301, seoPath);
 
@@ -693,7 +746,9 @@ app.get('/d/:slugOrId', async (req, res, next) => {
   }
 });
 
+// =========================================================================
 // 🌟 2. مسار روابط الأطباء الأساسية لدعم زواحف فيسبوك وواتساب
+// =========================================================================
 app.get(['/dr/:slugOrId', '/doctor/:slugOrId'], async (req, res, next) => {
   const rawParam = req.params.slugOrId || '';
   const id = String(rawParam).split('-')[0] || rawParam;
@@ -717,8 +772,6 @@ app.get(['/dr/:slugOrId', '/doctor/:slugOrId'], async (req, res, next) => {
   }
   next();
 });
-
-
 app.post('/book-appointment', async (req, res) => {
     const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price, fcm_token } = req.body;
 
