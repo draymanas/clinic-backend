@@ -584,7 +584,7 @@ function injectDoctorMetaTags(html, doctor, reqId) {
 
   const ogTitle = `دكتور. ${doctorName} | ${titlePrefix}${specialty}`;
   // وصف احترافي بدون أي أرقام هواتف لضمان فتح صفحة الطبيب الشخصية
-  const ogDescription = `📍 العيادة: ${locationText} | 💰 ${doctorFee} | 📅 احجز موعدك الآن مباشرة عبر صفحة الطبيب الرسمية بدون وسيط أو رسوم إضافية.`;
+  const ogDescription = `📍 العيادة: ${locationText} | 📅 احجز موعدك الآن مباشرة عبر صفحة الطبيب الرسمية بدون وسيط أو رسوم إضافية.`;
 
   let updatedHtml = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${ogTitle} | منصة دكتور</title>`);
 
@@ -651,7 +651,7 @@ app.get('/d/:slugOrId', async (req, res, next) => {
     // 🌟 أ) إذا كان الطالب زاحف فيسبوك أو واتساب: نرسل له كارت الطبيب وصورته فوراً
     if (isCrawler) {
       const ogTitle = `دكتور. ${doctorName} | ${titlePrefix}${specialty}`;
-      const ogDescription = `📍 العيادة: ${locationText} | 💰 ${doctorFee} | 📅 احجز موعدك الآن مباشرة عبر صفحة الطبيب الرسمية بدون وسيط.`;
+      const ogDescription = `📍 العيادة: ${locationText} | 📅 احجز موعدك الآن مباشرة عبر صفحة الطبيب الرسمية بدون وسيط.`;
 
       const crawlerHtml = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
