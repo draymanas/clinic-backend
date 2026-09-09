@@ -219,7 +219,25 @@ app.get('/sitemap.xml', async (req, res) => {
       </url>
       `
     ];
+         // إضافة صفحات المقالات والخدمات التخصصية لخريطة الموقع
+      const servicesIds = [
+        'spine-surgery', 'nerve-entrapment', 'disc-treatment', 
+        'back-pain', 'migraine', 'peripheral-neuropathy', 
+        'balance-disorders', 'stroke-memory', 'alzheimers', 
+        'movement-disorders', 'optic-pressure', 'multiple-sclerosis', 
+        'epilepsy', 'development-delay', 'adhd-autism', 
+        'memory-brain', 'cerebral-palsy'
+      ];
 
+      servicesIds.forEach(srvId => {
+        urls.push(`
+        <url>
+          <loc>${baseUrl}/service/${srvId}</loc>
+          <changefreq>monthly</changefreq>
+          <priority>0.8</priority>
+        </url>
+        `);
+      });
     // 2. جمع صفحات التخصصات والمدن والمناطق الفعلية الفريدة
     const categoryPages = new Set();
 
