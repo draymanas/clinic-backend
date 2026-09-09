@@ -179,7 +179,6 @@ const generateDoctorSlug = (doc) => {
     .replace(/\s+/g, '-');
   return `${doc.id}-${encodeURIComponent(cleanSlug)}`;
 };
-
 app.get('/sitemap.xml', async (req, res) => {
   try {
     // 1. جلب بيانات الأطباء النشطين
@@ -196,6 +195,7 @@ app.get('/sitemap.xml', async (req, res) => {
 
     const baseUrl = 'https://www.doctoreg.online';
 
+    // الصفحات الأساسية الثابتة
     const urls = [
       `
       <url>
@@ -217,27 +217,36 @@ app.get('/sitemap.xml', async (req, res) => {
         <changefreq>monthly</changefreq>
         <priority>0.5</priority>
       </url>
+      `,
+      `
+      <url>
+        <loc>${baseUrl}/dr/${encodeURIComponent("دكتور-ايمن-عجيب-استشاري-مخ-وأعصاب-وعمود-فقري")}</loc>
+        <changefreq>weekly</changefreq>
+        <priority>0.95</priority>
+      </url>
       `
     ];
-         // إضافة صفحات المقالات والخدمات التخصصية لخريطة الموقع
-      const servicesIds = [
-        'spine-surgery', 'nerve-entrapment', 'disc-treatment', 
-        'back-pain', 'migraine', 'peripheral-neuropathy', 
-        'balance-disorders', 'stroke-memory', 'alzheimers', 
-        'movement-disorders', 'optic-pressure', 'multiple-sclerosis', 
-        'epilepsy', 'development-delay', 'adhd-autism', 
-        'memory-brain', 'cerebral-palsy'
-      ];
 
-      servicesIds.forEach(srvId => {
-        urls.push(`
-        <url>
-          <loc>${baseUrl}/service/${srvId}</loc>
-          <changefreq>monthly</changefreq>
-          <priority>0.8</priority>
-        </url>
-        `);
-      });
+    // 🌟 إضافة صفحات المقالات والخدمات التخصصية لخريطة الموقع
+    const servicesIds = [
+      'spine-surgery', 'nerve-entrapment', 'disc-treatment', 
+      'back-pain', 'migraine', 'peripheral-neuropathy', 
+      'balance-disorders', 'stroke-memory', 'alzheimers', 
+      'movement-disorders', 'optic-pressure', 'multiple-sclerosis', 
+      'epilepsy', 'development-delay', 'adhd-autism', 
+      'memory-brain', 'cerebral-palsy'
+    ];
+
+    servicesIds.forEach(srvId => {
+      urls.push(`
+      <url>
+        <loc>${baseUrl}/service/${srvId}</loc>
+        <changefreq>monthly</changefreq>
+        <priority>0.85</priority>
+      </url>
+      `);
+    });
+
     // 2. جمع صفحات التخصصات والمدن والمناطق الفعلية الفريدة
     const categoryPages = new Set();
 
