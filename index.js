@@ -612,38 +612,85 @@ function injectDoctorMetaTags(html, doctor, reqId) {
 }
 
 // 🌟 1. مسار الرابط فائق الاختصار للتعليقات
+// 🌟 1. مسار الرابط فائق الاختصار للتعليقات (مُصلح لفيسبوك 100%)
 app.get('/d/:slugOrId', async (req, res, next) => {
   const rawParam = req.params.slugOrId || '';
   const id = String(rawParam).split('-')[0] || rawParam;
 
   try {
-    const { data: doctor } = await supabase.from('doctors').select('*').eq('id', parseInt(id) || id).single();
-    const docData = doctor || { id, name: 'طبيب معتمد' };
+    // 1. جلب بيانات الطبيب من قاعدة البيانات
+    let docData = null;
+    try {
+      const dbRes = await pool.query('SELECT * FROM doctors WHERE id = $1 LIMIT 1', [parseInt(id) || id]);
+      if (dbRes.rows && dbRes.rows.length > 0) docData = dbRes.rows[0];
+    } catch (e) {
+      console.warn("DB query warning in /d/:", e.message);
+    }
+
+    if (!docData) {
+      const { data } = await supabase.from('doctors').select('*').eq('id', parseInt(id) || id).maybeSingle();
+      if (data) docData = data;
+    }
+
+    if (!docData) {
+      docData = { id, name: 'طبيب معتمد' };
+    }
+
+    const doctorName = docData.name || 'طبيب معتمد';
+    const specialty = docData.specialty || 'استشاري متخصص';
+    const titlePrefix = docData.title ? `${docData.title} ` : 'طبيب استشاري ';
+    const city = docData.city || '';
+    const area = docData.area || '';
+    const locationText = [area, city].filter(Boolean).join(' – ') || 'مصر';
+    const doctorFee = docData.fee ? `سعر الكشف: ${docData.fee} ج.م` : 'محدد بالعيادة';
+    const doctorPhoto = docData.image_url || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=1200&h=630&auto=format&fit=crop&q=80';
 
     const userAgent = (req.headers['user-agent'] || '').toLowerCase();
     const isCrawler = /facebookexternalhit|facebot|twitterbot|whatsapp|telegrambot|linkedinbot|slackbot|discordbot/i.test(userAgent);
 
-    // إذا كان زائراً بشرياً عادياً: تحويله فوراً إلى رابط الـ SEO الكامل
-    if (!isCrawler) {
-      const seoPath = getDoctorSeoPath(docData, id);
-      return res.redirect(301, seoPath);
+    // 🌟 أ) إذا كان الطالب زاحف فيسبوك أو واتساب: نرسل له كارت الطبيب وصورته فوراً
+    if (isCrawler) {
+      const ogTitle = `دكتور. ${doctorName} | ${titlePrefix}${specialty}`;
+      const ogDescription = `📍 العيادة: ${locationText} | 💰 ${doctorFee} | 📅 احجز موعدك الآن مباشرة عبر صفحة الطبيب الرسمية بدون وسيط.`;
+
+      const crawlerHtml = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>${ogTitle}</title>
+  <meta name="description" content="${ogDescription}" />
+  <meta property="og:title" content="${ogTitle}" />
+  <meta property="og:description" content="${ogDescription}" />
+  <meta property="og:image" content="${doctorPhoto}" />
+  <meta property="og:image:secure_url" content="${doctorPhoto}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:url" content="https://www.doctoreg.online/d/${id}" />
+  <meta property="og:type" content="profile" />
+  <meta property="og:site_name" content="منصة دكتور" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${ogTitle}" />
+  <meta name="twitter:description" content="${ogDescription}" />
+  <meta name="twitter:image" content="${doctorPhoto}" />
+</head>
+<body>
+  <h1>${ogTitle}</h1>
+  <p>${ogDescription}</p>
+</body>
+</html>`;
+
+      res.set('Content-Type', 'text/html; charset=utf-8');
+      return res.status(200).send(crawlerHtml);
     }
 
-    // إذا كان زاحف فيسبوك أو واتساب: إرسال الكارت
-    let htmlPath = path.join(__dirname, 'dist', 'index.html');
-    if (!fs.existsSync(htmlPath)) {
-      htmlPath = path.join(__dirname, 'index.html');
-    }
+    // 🌟 ب) إذا كان زائراً حقيقياً في المتصفح: تحويل 301 إلى رابط الـ SEO الكامل
+    const seoPath = getDoctorSeoPath(docData, id);
+    return res.redirect(301, seoPath);
 
-    if (fs.existsSync(htmlPath)) {
-      const rawHtml = fs.readFileSync(htmlPath, 'utf-8');
-      const customHtml = injectDoctorMetaTags(rawHtml, docData, id);
-      return res.status(200).send(customHtml);
-    }
   } catch (err) {
     console.error('Error in /d/ route:', err);
+    res.redirect(301, 'https://www.doctoreg.online/');
   }
-  next();
 });
 
 // 🌟 2. مسار روابط الأطباء الأساسية لدعم زواحف فيسبوك وواتساب
