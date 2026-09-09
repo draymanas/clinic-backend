@@ -904,8 +904,11 @@ const servicesMetaMap = {
 // =========================================================================
 // 🌟 مسار مشاركة المقالات والخدمات فائق الاختصار والجمال: /s/:serviceId
 // =========================================================================
+// =========================================================================
+// 🌟 مسار مشاركة المقالات والخدمات فائق الاختصار والجمال: /s/ و /service/
+// =========================================================================
 app.get(['/s/:serviceId', '/service/:serviceId'], async (req, res, next) => {
-  const serviceId = req.params.serviceId;
+  const serviceId = req.params.serviceId || '';
   const userAgent = (req.headers['user-agent'] || '').toLowerCase();
   const isCrawler = /facebookexternalhit|facebot|twitterbot|whatsapp|telegrambot|linkedinbot|slackbot|discordbot/i.test(userAgent);
 
@@ -915,9 +918,10 @@ app.get(['/s/:serviceId', '/service/:serviceId'], async (req, res, next) => {
     image: 'https://www.doctoreg.online/spine-surgery.png'
   };
 
-  // 1. إذا كان زاحف فيسبوك أو واتساب: إرسال الكارت العربي والصورة فوراً
+  const canonicalUrl = `https://www.doctoreg.online/service/${serviceId}`;
+
+  // 1. 🌟 إذا كان روبوت فيسبوك أو واتساب: إرسال الكارت العربي والصورة فوراً بكود 200
   if (isCrawler) {
-    const canonicalUrl = `https://www.doctoreg.online/service/${serviceId}`;
     const crawlerHtml = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -948,8 +952,34 @@ app.get(['/s/:serviceId', '/service/:serviceId'], async (req, res, next) => {
     return res.status(200).send(crawlerHtml);
   }
 
-  // 2. إذا كان زائراً حقيقياً في المتصفح: نقله فوراً لرابط المقال على موقعك
-  return res.redirect(301, `https://www.doctoreg.online/service/${serviceId}`);
+  // 2. 🌟 إذا كان زائراً بشرياً عادياً في المتصفح:
+  // نرسل صفحة تحميل خفيفة تحمل كارت المقال وتقوم فوراً بتحميل وتوجيه المتصفح لصفحة الخدمة داخل تطبيق React
+  const renderClientHtml = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>${serviceData.title}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; background: #f8fafc; color: #1e293b; margin: 0; text-align: center; }
+    .loader { width: 42px; height: 42px; border: 4px solid #e2e8f0; border-top-color: #1a73e8; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+  <script>
+    // التوجيه الذكي المباشر بدون Loop
+    sessionStorage.setItem('current_service', '${serviceId}');
+    window.location.replace('/?redirect_service=${serviceId}');
+  </script>
+</head>
+<body>
+  <div class="loader"></div>
+  <h3 style="margin:0 0 8px 0; font-size:18px;">جاري فتح المقال الطبي...</h3>
+  <p style="margin:0; color:#64748b; font-size:14px;">${serviceData.title}</p>
+</body>
+</html>`;
+
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  return res.status(200).send(renderClientHtml);
 });
 
 app.post('/book-appointment', async (req, res) => {
