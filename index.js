@@ -812,6 +812,143 @@ app.get(['/dr/:slugOrId', '/doctor/:slugOrId'], async (req, res, next) => {
   }
   next();
 });
+
+// =========================================================================
+// 🌟 3. مسار كروت المقالات والخدمات الطبية لفيسبوك وواتساب (/service/:serviceId)
+// =========================================================================
+
+// خريطة بيانات المقالات والخدمات للكروت والسوشيال ميديا
+const servicesMetaMap = {
+  'spine-surgery': {
+    title: 'جراحات العمود الفقري الميكروسكوبية | علاج الانزلاق الغضروفي',
+    desc: 'تعرف على أحدث طرق جراحات العمود الفقري الميكروسكوبية الدقيقة لعلاج الانزلاق الغضروفي وضغط الأعصاب وعرق النسا مع دكتور أيمن عجيب.',
+    image: 'https://www.doctoreg.online/spine-surgery.png'
+  },
+  'nerve-entrapment': {
+    title: 'علاج اختناق الأعصاب الطرفية وتنميل اليد والكتف',
+    desc: 'أسباب وأعراض اختناق الأعصاب وتسليك العصب الأوسط والزندي بأحدث التقنيات الدقيقة مع دكتور أيمن عجيب.',
+    image: 'https://www.doctoreg.online/nerve-entrapment.png'
+  },
+  'disc-treatment': {
+    title: 'علاج الانزلاق الغضروفي القطني والعنقي بدون جراحة تقليدية',
+    desc: 'تشخيص وعلاج الانزلاق الغضروفي العنقي والقطني وآلام الرقبة والظهر بأحدث البروتوكولات الطبية مع دكتور أيمن عجيب.',
+    image: 'https://www.doctoreg.online/disc-treatment.png'
+  },
+  'back-pain': {
+    title: 'علاج آلام أسفل الظهر وعرق النسا والتنميل',
+    desc: 'أحدث وسائل علاج آلام الظهر الحادة والمزمنة وعرق النسا بدون جراحة وتحت إشراف استشاري جراحة المخ والأعصاب.',
+    image: 'https://www.doctoreg.online/back-pain.png'
+  },
+  'migraine': {
+    title: 'علاج الصداع النصفي والصداع المزمن وأنواعه',
+    desc: 'دليلك الشامل لتشخيص وعلاج نوبات الصداع النصفي والصداع التوتري وأسبابه العصبية مع دكتور أيمن عجيب.',
+    image: 'https://www.doctoreg.online/migraine.png'
+  },
+  'peripheral-neuropathy': {
+    title: 'علاج التهاب الأعصاب الطرفية وحرقان وتنميل القدمين',
+    desc: 'تشخيص وعلاج التهابات الأعصاب لمصابي السكري ونقص الفيتامينات وبرامج استعادة الإحساس الطبيعي بالأطراف.',
+    image: 'https://www.doctoreg.online/peripheral-neuropathy.png'
+  },
+  'balance-disorders': {
+    title: 'علاج الدوخة وعدم الاتزان والرعشة العصبية',
+    desc: 'تشخيص أسباب الدوخة المتكررة وعدم التوازن واضطرابات المشي العصبية وطرق علاجها الفعالة.',
+    image: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=1200&h=630&fit=crop&q=80'
+  },
+  'stroke-memory': {
+    title: 'جلطات ونزيف المخ وطرق الوقاية والتأهيل العصبي',
+    desc: 'التشخيص المبكر والعلاج الدوائي وبرامج التأهيل بعد جلطات الدماغ الحادة والمزمنة مع دكتور أيمن عجيب.',
+    image: 'https://images.unsplash.com/photo-1559757175-5700dde675bc?w=1200&h=630&fit=crop&q=80'
+  },
+  'alzheimers': {
+    title: 'علاج ضعف الذاكرة والنسيان والزهايمر المبكر',
+    desc: 'أحدث الفحوصات والبرامج العلاجية لتنشيط الذاكرة وإبطاء تطور الزهايمر وأمراض الشيخوخة العصبية.',
+    image: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=1200&h=630&fit=crop&q=80'
+  },
+  'movement-disorders': {
+    title: 'علاج اضطرابات الحركة والشلل الرعاش والحركات اللاإرادية',
+    desc: 'بروتوكولات دوائية وجراحية متطورة للسيطرة على مرض باركنسون (الشلل الرعاش) واضطرابات الجهاز العصبي الحركي.',
+    image: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=1200&h=630&fit=crop&q=80'
+  },
+  'optic-pressure': {
+    title: 'علاج ارتفاع ضغط المخ وارتشاح العصب البصري والإغماء',
+    desc: 'تشخيص أسباب نوبات الإغماء المتكررة وعلاج ارتفاع ضغط السائل الدماغي لحماية النظر والعصب البصري.',
+    image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1200&h=630&fit=crop&q=80'
+  },
+  'multiple-sclerosis': {
+    title: 'علاج التصلب المتعدد (مرض MS) والاضطرابات المناعية',
+    desc: 'متابعة وعلاج التصلب اللويحي المتعدد بأحدث العلاجات البيولوجية والمناعية لتقليل الانتكاسات.',
+    image: 'https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?w=1200&h=630&fit=crop&q=80'
+  },
+  'epilepsy': {
+    title: 'علاج التشنجات وزيادة كهرباء المخ والصرع',
+    desc: 'تنظيم شحنات المخ الكهربائية وعلاج الصرع والتشنجات للأطفال والبالغين ومتابعة رسم المخ الدقيق.',
+    image: 'https://images.unsplash.com/photo-1583912267670-6575ad4736e6?w=1200&h=630&fit=crop&q=80'
+  },
+  'adhd-autism': {
+    title: 'فرط الحركة وتشتت الانتباه (ADHD) وطيف التوحد للأطفال',
+    desc: 'تشخيص وعلاج اضطرابات الانتباه والنشاط الزائد وتعديل السلوك للأطفال مع استشاري المخ والأعصاب.',
+    image: 'https://images.unsplash.com/photo-1502086223501-7ea6ecd79368?w=1200&h=630&fit=crop&q=80'
+  },
+  'cerebral-palsy': {
+    title: 'علاج الشلل الدماغي وضمور العضلات عند الأطفال والبالغين',
+    desc: 'خطط علاج متكاملة وتأهيل حركي وعصبي لحالات الشلل الدماغي وضمور العضلات لتعزيز القدرة على الحركة.',
+    image: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=1200&h=630&fit=crop&q=80'
+  },
+  'idiopathic-intracranial-hypertension': {
+    title: 'علاج ارتفاع ضغط المخ الحميد والورم الكاذب للمخ',
+    desc: 'تشخيص ومتابعة ارتفاع ضغط المخ مجهول السبب والورم الكاذب، مع تقييم الصداع واضطرابات الرؤية وارتشاح العصب البصري وحماية النظر.',
+    image: 'https://images.unsplash.com/photo-1583912267670-6575ad4736e6?w=1200&h=630&fit=crop&q=80'
+  },
+};
+
+app.get('/service/:serviceId', async (req, res, next) => {
+  const serviceId = req.params.serviceId;
+  const userAgent = (req.headers['user-agent'] || '').toLowerCase();
+  const isCrawler = /facebookexternalhit|facebot|twitterbot|whatsapp|telegrambot|linkedinbot|slackbot|discordbot/i.test(userAgent);
+
+  const serviceData = servicesMetaMap[serviceId] || {
+    title: 'خدمات واستشارات جراحة المخ والأعصاب | دكتور أيمن عجيب',
+    desc: 'دليل طبي شامل لتشخيص وعلاج أمراض المخ والأعصاب والعمود الفقري مع دكتور أيمن عجيب.',
+    image: 'https://www.doctoreg.online/spine-surgery.png'
+  };
+
+  // 🌟 إذا كان روبوت فيسبوك أو واتساب: نرسل له كارت المقال وصورته وعنوانه بالعربي
+  if (isCrawler) {
+    const canonicalUrl = `https://www.doctoreg.online/service/${serviceId}`;
+    const crawlerHtml = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>${serviceData.title}</title>
+  <meta name="description" content="${serviceData.desc}" />
+  <meta property="og:title" content="${serviceData.title}" />
+  <meta property="og:description" content="${serviceData.desc}" />
+  <meta property="og:image" content="${serviceData.image}" />
+  <meta property="og:image:secure_url" content="${serviceData.image}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:url" content="${canonicalUrl}" />
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="عيادات دكتور أيمن عجيب" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${serviceData.title}" />
+  <meta name="twitter:description" content="${serviceData.desc}" />
+  <meta name="twitter:image" content="${serviceData.image}" />
+</head>
+<body>
+  <h1>${serviceData.title}</h1>
+  <p>${serviceData.desc}</p>
+</body>
+</html>`;
+
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    return res.status(200).send(crawlerHtml);
+  }
+
+  // 🌟 إذا كان زائراً حقيقياً: دعه يمر لـ Vercel ليفتح صفحة المقال التفاعلية
+  next();
+});
+
 app.post('/book-appointment', async (req, res) => {
     const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price, fcm_token } = req.body;
 
