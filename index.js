@@ -99,35 +99,13 @@ app.post('/api/send-bulk-notification', async (req, res) => {
         let successCount = 0;
         let failureCount = 0;
 
-        // 🌟 تجهيز رابط الفتح المباشر الذي يحمل نص الإشعار بالكامل
-        const notificationOpenUrl = `https://www.doctoreg.online/?notif_title=${encodeURIComponent(title)}&notif_body=${encodeURIComponent(body)}`;
-
         // إرسال الإشعارات على دفعات (مجموعة 500 كحد أقصى لكل نداء لفايربيز)
         for (let i = 0; i < tokens.length; i += 500) {
             const chunk = tokens.slice(i, i + 500);
             
             const message = {
                 notification: { title, body },
-                // 🌟 تمرير البيانات لكي يقرأها تطبيق فلاتر أو المتصفح
-                data: {
-                    title: String(title),
-                    body: String(body),
-                    url: notificationOpenUrl,
-                    click_action: 'FLUTTER_NOTIFICATION_CLICK'
-                },
                 tokens: chunk,
-                // 🌟 إعدادات متصفحات الويب (Chrome / Safari / Firefox) لفتح الرابط فوراً عند الضغط
-                webpush: {
-                    fcmOptions: {
-                        link: notificationOpenUrl
-                    },
-                    notification: {
-                        title: title,
-                        body: body,
-                        icon: 'https://www.doctoreg.online/logo512.png',
-                        badge: 'https://www.doctoreg.online/logo512.png'
-                    }
-                },
                 // إعدادات مخصصة لأندرويد لتشغيل شاشة التنبيه الفوري بهزاز وصوت مرتفع الأهمية
                 android: {
                     priority: 'high',
@@ -144,9 +122,6 @@ app.post('/api/send-bulk-notification', async (req, res) => {
                             badge: 1,
                             sound: 'default'
                         }
-                    },
-                    fcmOptions: {
-                        link: notificationOpenUrl
                     }
                 }
             };
