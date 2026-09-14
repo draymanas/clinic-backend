@@ -105,6 +105,11 @@ app.post('/api/send-bulk-notification', async (req, res) => {
             
             const message = {
                 notification: { title, body },
+                  // 🔔 بيانات خاصة بالويب لفتح صفحة تفاصيل الإشعار
+    data: {
+        notif_title: String(title),
+        notif_body: String(body)
+    },
                 tokens: chunk,
                 // إعدادات مخصصة لأندرويد لتشغيل شاشة التنبيه الفوري بهزاز وصوت مرتفع الأهمية
                 android: {
