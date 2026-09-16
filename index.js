@@ -965,24 +965,45 @@ app.get('/s/:serviceId', async (req, res) => {
 
 // API لتحديث أو حفظ توكن الإشعارات للمريض عند تسجيل الدخول
 app.post('/api/update-patient-token', async (req, res) => {
-    const { mobile, fcm_token } = req.body;
+  const { mobile, fcm_token } = req.body;
 
-    if (!mobile || !fcm_token) {
-        return res.status(400).json({ error: "بيانات غير مكتملة" });
-    }
+  if (!mobile || !fcm_token) {
+    return res.status(400).json({
+      success: false,
+      error: 'بيانات غير مكتملة'
+    });
+  }
 
-    try {
-        await pool.query(`
-            UPDATE appointments 
-            SET fcm_token = $1 
-            WHERE mobile = $2
-        `, [fcm_token, mobile]);
+  try {
+    const result = await pool.query(
+      `
+      UPDATE appointments
+      SET fcm_token = $1
+      WHERE mobile = $2
+      `,
+      [fcm_token, mobile]
+    );
 
-        res.json({ success: true, message: "تم تحديث التوكن بنجاح" });
-    } catch (err) {
-        console.error("Error updating patient token:", err.message);
-        res.status(500).json({ error: "فشل تحديث التوكن" });
-    }
+    console.log(
+      `📱 تم تحديث توكن المريض ${mobile} في ${result.rowCount} حجز`
+    );
+
+    res.json({
+      success: true,
+      updated_rows: result.rowCount,
+      message:
+        result.rowCount > 0
+          ? 'تم تحديث التوكن بنجاح'
+          : 'لا توجد حجوزات سابقة لهذا المريض، سيتم حفظ التوكن مع الحجز الجديد'
+    });
+  } catch (err) {
+    console.error('❌ خطأ في تحديث توكن المريض:', err);
+
+    res.status(500).json({
+      success: false,
+      error: 'حدث خطأ أثناء تحديث التوكن'
+    });
+  }
 });
 
 app.post('/book-appointment', async (req, res) => {
