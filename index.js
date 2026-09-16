@@ -972,18 +972,16 @@ app.post('/api/update-patient-token', async (req, res) => {
     }
 
     try {
-        // إذا كان المريض مسجلاً من قبل يتم تحديث التوكن، وإذا لم يكن موجوداً يتم إضافته برقم موبايله
         await pool.query(`
-            INSERT INTO patients (mobile, fcm_token) 
-            VALUES ($1, $2)
-            ON CONFLICT (mobile) 
-            DO UPDATE SET fcm_token = EXCLUDED.fcm_token
-        `, [mobile, fcm_token]);
+            UPDATE appointments 
+            SET fcm_token = $1 
+            WHERE mobile = $2
+        `, [fcm_token, mobile]);
 
-        res.json({ success: true, message: "تم حفظ توكن الإشعارات بنجاح" });
+        res.json({ success: true, message: "تم تحديث التوكن بنجاح" });
     } catch (err) {
         console.error("Error updating patient token:", err.message);
-        res.status(500).json({ error: "فشل حفظ التوكن" });
+        res.status(500).json({ error: "فشل تحديث التوكن" });
     }
 });
 
