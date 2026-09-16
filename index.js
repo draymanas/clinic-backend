@@ -964,8 +964,16 @@ app.get('/s/:serviceId', async (req, res) => {
 });
 
 app.post('/book-appointment', async (req, res) => {
-    const { doctor_id, doctor_name, patient_name, mobile, appointment_date, price, fcm_token } = req.body;
-
+   const {
+    doctor_id,
+    doctor_name,
+    patient_name,
+    mobile,
+    appointment_date,
+    appointment_time,
+    price,
+    fcm_token
+} = req.body;
     try {
         // 1. حفظ الحجز في قاعدة البيانات
         const result = await pool.query(
@@ -985,8 +993,12 @@ app.post('/book-appointment', async (req, res) => {
 if (fcmToken) {
     const message = {
         notification: {
-            title: 'حجز جديد',
-            body: `لديك حجز جديد مع المريض: ${patient_name}`
+            title: '🔔 حجز جديد',
+            body: `المريض: ${patient_name} | التاريخ: ${appointment_date} | الساعة: ${appointment_time || 'غير محددة'}`
+        },
+        data: {
+            notif_title: '🔔 حجز جديد',
+            notif_body: `المريض: ${patient_name} | التاريخ: ${appointment_date} | الساعة: ${appointment_time || 'غير محددة'}`
         },
         token: fcmToken
     };
