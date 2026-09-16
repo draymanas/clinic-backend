@@ -1049,24 +1049,28 @@ await getMessaging().send(message);
  // ==========================================
         // 🩺 [الإضافة الجديدة هنا فقط]: إرسال إشعار للمريض
         // ==========================================
-        try {
-            // البحث عن توكن المريض من جدول appointments باستخدام رقم موبايله
-            const patientRes = await pool.query('SELECT fcm_token FROM appointments WHERE mobile = $1 LIMIT 1', [mobile]);
-            const patientFcmToken = patientRes.rows[0]?.fcm_token;
+    // في ملف server.js داخل مسار /book-appointment
+try {
+    const patientRes = await pool.query(
+        'SELECT fcm_token FROM appointments WHERE mobile = $1 AND fcm_token IS NOT NULL ORDER BY id DESC LIMIT 1', 
+        [mobile]
+    );
+    const patientFcmToken = patientRes.rows[0]?.fcm_token;
 
-            if (patientFcmToken) {
-                await getMessaging().send({
-                    notification: {
-                        title: '✅ تم تسجيل حجزك بنجاح',
-                        body: `مرحباً ${patient_name}، تم حجز موعدك مع د. ${doctor_name} يوم ${appointment_date}.`
-                    },
-                    token: patientFcmToken
-                });
-                console.log("✅ تم إرسال إشعار تأكيد الحجز للمريض بنجاح");
-            }
-        } catch (patientErr) {
-            console.error("❌ فشل إرسال إشعار المريض:", patientErr.message);
-        }
+    if (patientFcmToken) {
+        // التعديل هنا: استخدام data ليتوافق مع كود الـ Service Worker لديك
+        await getMessaging().send({
+            data: {
+                notif_title: '✅ تم تسجيل حجزك بنجاح',
+                notif_body: `مرحباً ${patient_name}، تم حجز موعدك مع د. ${doctor_name} يوم ${appointment_date}.`
+            },
+            token: patientFcmToken
+        });
+        console.log("✅ تم إرسال إشعار تأكيد الحجز للمريض بنجاح");
+    }
+} catch (patientErr) {
+    console.error("❌ فشل إرسال إشعار المريض:", patientErr.message);
+}
         // ==========================================
 // بعد إرسال إشعار الطبيب بنجاح، أضف هذا الجزء للأدمن:
 const adminToken = process.env.ADMIN_FCM_TOKEN; // التوكن الخاص بك
