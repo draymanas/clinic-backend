@@ -1022,7 +1022,32 @@ await getMessaging().send(message);
         }
     }
 }
+// 🩺 3. إرسال إشعار تأكيد للمريض (خاص بموقع الويب / متصفحه)
+        // ---------------------------------------------------------
+        if (fcm_token) {
+            const patientMessage = {
+                notification: {
+                    title: '✅ تم تسجيل حجزك بنجاح',
+                    body: `مرحباً ${patient_name}، تم حجز موعدك مع د. ${doctor_name} يوم ${appointment_date}.`
+                },
+                data: {
+                    notif_title: '✅ تأكيد الحجز',
+                    notif_body: `تم حجز موعدك مع د. ${doctor_name} بنجاح.`
+                },
+                token: fcm_token
+            };
 
+            try {
+                await getMessaging().send(patientMessage);
+                console.log("✅ تم إرسال إشعار تأكيد الحجز للمريض بنجاح");
+            } catch (patientError) {
+                console.error("❌ فشل إرسال إشعار تأكيد المريض:", patientError.message);
+                if (patientError.code === 'messaging/registration-token-not-registered' || patientError.code === 'messaging/invalid-registration-token') {
+                    // إذا كان توكن المريض تالفاً، يمكنك تنظيفه من جدول الحجوزات أو تجاهله
+                    await pool.query('UPDATE appointments SET fcm_token = NULL WHERE fcm_token = $1', [fcm_token]);
+                }
+            }
+        }
 // بعد إرسال إشعار الطبيب بنجاح، أضف هذا الجزء للأدمن:
 const adminToken = process.env.ADMIN_FCM_TOKEN; // التوكن الخاص بك
 
