@@ -1052,8 +1052,8 @@ await getMessaging().send(message);
         // 🩺 [الإضافة الجديدة هنا فقط]: إرسال إشعار للمريض
         // ==========================================
         try {
-            // البحث عن توكن المريض من جدول patients باستخدام رقم موبايله
-            const patientRes = await pool.query('SELECT fcm_token FROM patients WHERE mobile = $1 LIMIT 1', [mobile]);
+            // البحث عن توكن المريض من جدول appointments باستخدام رقم موبايله
+            const patientRes = await pool.query('SELECT fcm_token FROM appointments WHERE mobile = $1 LIMIT 1', [mobile]);
             const patientFcmToken = patientRes.rows[0]?.fcm_token;
 
             if (patientFcmToken) {
