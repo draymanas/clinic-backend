@@ -963,6 +963,30 @@ app.get('/s/:serviceId', async (req, res) => {
   return res.redirect(301, `https://www.doctoreg.online/service/${serviceId}`);
 });
 
+// API لتحديث أو حفظ توكن الإشعارات للمريض عند تسجيل الدخول
+app.post('/api/update-patient-token', async (req, res) => {
+    const { mobile, fcm_token } = req.body;
+
+    if (!mobile || !fcm_token) {
+        return res.status(400).json({ error: "بيانات غير مكتملة" });
+    }
+
+    try {
+        // إذا كان المريض مسجلاً من قبل يتم تحديث التوكن، وإذا لم يكن موجوداً يتم إضافته برقم موبايله
+        await pool.query(`
+            INSERT INTO patients (mobile, fcm_token) 
+            VALUES ($1, $2)
+            ON CONFLICT (mobile) 
+            DO UPDATE SET fcm_token = EXCLUDED.fcm_token
+        `, [mobile, fcm_token]);
+
+        res.json({ success: true, message: "تم حفظ توكن الإشعارات بنجاح" });
+    } catch (err) {
+        console.error("Error updating patient token:", err.message);
+        res.status(500).json({ error: "فشل حفظ التوكن" });
+    }
+});
+
 app.post('/book-appointment', async (req, res) => {
    const {
     doctor_id,
