@@ -1065,10 +1065,7 @@ await getMessaging().send(message);
         }
     }
 }
-// 🩺 3. إرسال إشعار تأكيد للمريض (خاص بموقع الويب / متصفحه)
-        // ---------------------------------------------------------
- // ==========================================
-        // 🩺 [الإضافة الجديدة هنا فقط]: إرسال إشعار للمريض
+ 
         // ==========================================
     // في ملف server.js داخل مسار /book-appointment
 // 🩺 إرسال إشعار تأكيد للمريض فوراً باستخدام الـ fcm_token المُرسل مع الطلب
@@ -1092,9 +1089,9 @@ try {
         // 2. إرسال الإشعار شاملاً notification و data معاً حتى يظهر في المتصفح مثل تجربة Firebase Console
         const patientMessage = {
             notification: {
-                title: '✅ تم تسجيل حجزك بنجاح',
-                body: `مرحباً ${patient_name}، تم تأكيد حجزك مع د. ${doctor_name} يوم ${appointment_date}.`
-            },
+    title: '✅ تم تسجيل حجزك بنجاح',
+    body: `مرحباً ${patient_name}، تم تأكيد حجزك مع د. ${doctor_name} يوم ${appointment_date} الساعة ${appointment_time || 'غير محددة'}.`
+},
             data: {
                 notif_title: '✅ تم تسجيل حجزك بنجاح',
                 notif_body: `مرحباً ${patient_name}، تم تأكيد حجزك مع د. ${doctor_name} يوم ${appointment_date} الساعة ${appointment_time || 'غير محددة'}.`
