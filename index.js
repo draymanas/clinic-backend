@@ -1069,43 +1069,188 @@ await getMessaging().send(message);
         // ==========================================
     // في ملف server.js داخل مسار /book-appointment
 // 🩺 إرسال إشعار تأكيد للمريض فوراً باستخدام الـ fcm_token المُرسل مع الطلب
-// 🩺 إرسال إشعار تأكيد للمريض فوراً
+// 🩺 إرسال إشعار تأكيد الحجز للمريض فوراً
 try {
-    // 1. استخدام التوكن القادم مع الطلب، وإذا لم يوجد نبحث عنه برقم هاتف المريض من الحجوزات السابقة
+
+    // =========================================================
+    // 1. الحصول على Web FCM Token الخاص بالمريض
+    // =========================================================
+
+    // نستخدم التوكن القادم مع طلب الحجز أولاً
     let targetPatientToken = fcm_token;
 
+    // إذا لم يوجد توكن مع طلب الحجز،
+    // نبحث عن آخر توكن محفوظ للمريض من الحجوزات السابقة
     if (!targetPatientToken && mobile) {
+
         const tokenSearch = await pool.query(
-            "SELECT fcm_token FROM appointments WHERE mobile = $1 AND fcm_token IS NOT NULL AND fcm_token != '' ORDER BY id DESC LIMIT 1",
+            `
+            SELECT fcm_token
+            FROM appointments
+            WHERE mobile = $1
+              AND fcm_token IS NOT NULL
+              AND fcm_token != ''
+            ORDER BY id DESC
+            LIMIT 1
+            `,
             [mobile]
         );
+
         if (tokenSearch.rows.length > 0) {
-            targetPatientToken = tokenSearch.rows[0].fcm_token;
-            console.log("🔍 تم جلب توكن المريض الاحتياطي من قاعدة البيانات بنجاح");
+
+            targetPatientToken =
+                tokenSearch.rows[0].fcm_token;
+
+            console.log(
+                "🔍 تم جلب توكن المريض الاحتياطي من قاعدة البيانات بنجاح"
+            );
         }
     }
 
+
+    // =========================================================
+    // 2. جلب عنوان العيادة الخاصة بالطبيب صاحب الحجز
+    // =========================================================
+
+    let clinicAddress = '';
+
+    try {
+
+        const doctorInfo = await pool.query(
+            `
+            SELECT address
+            FROM doctors
+            WHERE id = $1
+            LIMIT 1
+            `,
+            [doctor_id]
+        );
+
+        if (doctorInfo.rows.length > 0) {
+
+            clinicAddress =
+                doctorInfo.rows[0].address || '';
+
+            console.log(
+                "📍 تم جلب عنوان عيادة الطبيب بنجاح"
+            );
+
+        } else {
+
+            console.log(
+                "⚠️ لم يتم العثور على بيانات الطبيب للحصول على عنوان العيادة"
+            );
+        }
+
+    } catch (addressErr) {
+
+        console.error(
+            "❌ خطأ أثناء جلب عنوان عيادة الطبيب:",
+            addressErr.message
+        );
+
+        // لا نوقف عملية الإشعار إذا حدثت مشكلة في العنوان
+        clinicAddress = '';
+    }
+
+
+    // =========================================================
+    // 3. تجهيز عنوان ونص إشعار المريض
+    // =========================================================
+
+    const notificationTitle =
+        '✅ تم تسجيل حجزك بنجاح';
+
+    // ⚠️ مهم:
+    // عنوان العيادة لا نضعه هنا حتى لا يظهر في Popup
+    const notificationBody =
+        `مرحباً ${patient_name}، تم تأكيد حجزك مع د. ${doctor_name} يوم ${appointment_date} الساعة ${appointment_time || 'غير محددة'}.`;
+
+
+    // =========================================================
+    // 4. إرسال إشعار المريض
+    // =========================================================
+
     if (targetPatientToken) {
-        // 2. إرسال الإشعار شاملاً notification و data معاً حتى يظهر في المتصفح مثل تجربة Firebase Console
+
         const patientMessage = {
+
+            // -------------------------------------------------
+            // هذا الجزء يظهر في إشعار المتصفح / Popup
+            // -------------------------------------------------
             notification: {
-    title: '✅ تم تسجيل حجزك بنجاح',
-    body: `مرحباً ${patient_name}، تم تأكيد حجزك مع د. ${doctor_name} يوم ${appointment_date} الساعة ${appointment_time || 'غير محددة'}.`
-},
-            data: {
-                notif_title: '✅ تم تسجيل حجزك بنجاح',
-                notif_body: `مرحباً ${patient_name}، تم تأكيد حجزك مع د. ${doctor_name} يوم ${appointment_date} الساعة ${appointment_time || 'غير محددة'}.`
+
+                title: notificationTitle,
+
+                body: notificationBody
             },
+
+
+            // -------------------------------------------------
+            // هذه البيانات تصل إلى App.js و Service Worker
+            // ويمكن استخدامها لفتح NotificationPage
+            // -------------------------------------------------
+            data: {
+
+                notif_title:
+                    notificationTitle,
+
+                notif_body:
+                    notificationBody,
+
+                // ⭐ عنوان العيادة
+                address:
+                    String(clinicAddress || ''),
+
+                // ⭐ وقت الحجز متاح أيضاً كبيانات مستقلة
+                appointment_time:
+                    String(appointment_time || ''),
+
+                // ⭐ تاريخ الحجز
+                appointment_date:
+                    String(appointment_date || ''),
+
+                // ⭐ الطبيب
+                doctor_name:
+                    String(doctor_name || '')
+            },
+
+
+            // -------------------------------------------------
+            // توكن المريض
+            // -------------------------------------------------
             token: targetPatientToken
         };
 
+
+        // إرسال الإشعار باستخدام Firebase
         await getMessaging().send(patientMessage);
-        console.log("✅ تم إرسال إشعار تأكيد الحجز للمريض بنجاح فوراً");
+
+
+        console.log(
+            "✅ تم إرسال إشعار تأكيد الحجز للمريض بنجاح فوراً"
+        );
+
+        console.log(
+            "📍 عنوان العيادة المرسل مع الإشعار:",
+            clinicAddress || 'غير متوفر'
+        );
+
+
     } else {
-        console.log("⚠️ لم يتم إرسال إشعار للمريض لعدم توفر fcm_token مع الطلب أو في قاعدة البيانات");
+
+        console.log(
+            "⚠️ لم يتم إرسال إشعار للمريض لعدم توفر fcm_token مع الطلب أو في قاعدة البيانات"
+        );
     }
+
+
 } catch (patientErr) {
-    console.error("❌ فشل إرسال إشعار المريض:", patientErr.message);
+
+    console.error(
+        "❌ فشل إرسال إشعار المريض:",
+        patientErr.message
+    );
 }
         // ==========================================
 // بعد إرسال إشعار الطبيب بنجاح، أضف هذا الجزء للأدمن:
