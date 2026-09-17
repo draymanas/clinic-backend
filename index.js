@@ -1072,21 +1072,40 @@ await getMessaging().send(message);
         // ==========================================
     // في ملف server.js داخل مسار /book-appointment
 // 🩺 إرسال إشعار تأكيد للمريض فوراً باستخدام الـ fcm_token المُرسل مع الطلب
+// 🩺 إرسال إشعار تأكيد للمريض فوراً
 try {
-    // 💡 استخدام التوكن القادم مباشرة من الـ req.body (المُرسل من الفرونت إند) أو الاحتياطي
-    const targetPatientToken = fcm_token; 
+    // 1. استخدام التوكن القادم مع الطلب، وإذا لم يوجد نبحث عنه برقم هاتف المريض من الحجوزات السابقة
+    let targetPatientToken = fcm_token;
+
+    if (!targetPatientToken && mobile) {
+        const tokenSearch = await pool.query(
+            "SELECT fcm_token FROM appointments WHERE mobile = $1 AND fcm_token IS NOT NULL AND fcm_token != '' ORDER BY id DESC LIMIT 1",
+            [mobile]
+        );
+        if (tokenSearch.rows.length > 0) {
+            targetPatientToken = tokenSearch.rows[0].fcm_token;
+            console.log("🔍 تم جلب توكن المريض الاحتياطي من قاعدة البيانات بنجاح");
+        }
+    }
 
     if (targetPatientToken) {
-        await getMessaging().send({
+        // 2. إرسال الإشعار شاملاً notification و data معاً حتى يظهر في المتصفح مثل تجربة Firebase Console
+        const patientMessage = {
+            notification: {
+                title: '✅ تم تسجيل حجزك بنجاح',
+                body: `مرحباً ${patient_name}، تم تأكيد حجزك مع د. ${doctor_name} يوم ${appointment_date}.`
+            },
             data: {
                 notif_title: '✅ تم تسجيل حجزك بنجاح',
-                notif_body: `مرحباً ${patient_name}، تم حجز موعدك مع د. ${doctor_name} يوم ${appointment_date} الساعة ${appointment_time || 'غير محددة'}.`
+                notif_body: `مرحباً ${patient_name}، تم تأكيد حجزك مع د. ${doctor_name} يوم ${appointment_date} الساعة ${appointment_time || 'غير محددة'}.`
             },
             token: targetPatientToken
-        });
+        };
+
+        await getMessaging().send(patientMessage);
         console.log("✅ تم إرسال إشعار تأكيد الحجز للمريض بنجاح فوراً");
     } else {
-        console.log("⚠️ لم يتم إرسال إشعار للمريض لعدم توفر fcm_token مع الطلب");
+        console.log("⚠️ لم يتم إرسال إشعار للمريض لعدم توفر fcm_token مع الطلب أو في قاعدة البيانات");
     }
 } catch (patientErr) {
     console.error("❌ فشل إرسال إشعار المريض:", patientErr.message);
