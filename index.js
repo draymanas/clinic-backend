@@ -1093,7 +1093,8 @@ try {
         const patientMessage = {
             notification: {
                 title: '✅ تم تسجيل حجزك بنجاح',
-               notif_body: `مرحباً ${patient_name}، تم حجز موعدك مع د. ${doctor_name} يوم ${appointment_date} الساعة ${appointment_time || 'المحددة'}.` },
+                body: `مرحباً ${patient_name}، تم تأكيد حجزك مع د. ${doctor_name} يوم ${appointment_date}.`
+            },
             data: {
                 notif_title: '✅ تم تسجيل حجزك بنجاح',
                 notif_body: `مرحباً ${patient_name}، تم تأكيد حجزك مع د. ${doctor_name} يوم ${appointment_date} الساعة ${appointment_time || 'غير محددة'}.`
