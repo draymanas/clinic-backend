@@ -1007,16 +1007,16 @@ app.post('/api/update-patient-token', async (req, res) => {
 });
 
 app.post('/book-appointment', async (req, res) => {
-   const {
-    doctor_id,
-    doctor_name,
-    patient_name,
-    mobile,
-    appointment_date,
-    appointment_time,
-    price,
-    fcm_token
-} = req.body;
+    const {
+        doctor_id,
+        doctor_name,
+        patient_name,
+        mobile,
+        appointment_date,
+        appointment_time,
+        price,
+        fcm_token
+    } = req.body;
     try {
         // 1. حفظ الحجز في قاعدة البيانات
         const result = await pool.query(
@@ -1071,23 +1071,22 @@ await getMessaging().send(message);
         // 🩺 [الإضافة الجديدة هنا فقط]: إرسال إشعار للمريض
         // ==========================================
     // في ملف server.js داخل مسار /book-appointment
+// 🩺 إرسال إشعار تأكيد للمريض فوراً باستخدام الـ fcm_token المُرسل مع الطلب
 try {
-    const patientRes = await pool.query(
-        'SELECT fcm_token FROM appointments WHERE mobile = $1 AND fcm_token IS NOT NULL ORDER BY id DESC LIMIT 1', 
-        [mobile]
-    );
-    const patientFcmToken = patientRes.rows[0]?.fcm_token;
+    // 💡 استخدام التوكن القادم مباشرة من الـ req.body (المُرسل من الفرونت إند) أو الاحتياطي
+    const targetPatientToken = fcm_token; 
 
-    if (patientFcmToken) {
-        // التعديل هنا: استخدام data ليتوافق مع كود الـ Service Worker لديك
+    if (targetPatientToken) {
         await getMessaging().send({
             data: {
                 notif_title: '✅ تم تسجيل حجزك بنجاح',
-                notif_body: `مرحباً ${patient_name}، تم حجز موعدك مع د. ${doctor_name} يوم ${appointment_date}.`
+                notif_body: `مرحباً ${patient_name}، تم حجز موعدك مع د. ${doctor_name} يوم ${appointment_date} الساعة ${appointment_time || 'غير محددة'}.`
             },
-            token: patientFcmToken
+            token: targetPatientToken
         });
-        console.log("✅ تم إرسال إشعار تأكيد الحجز للمريض بنجاح");
+        console.log("✅ تم إرسال إشعار تأكيد الحجز للمريض بنجاح فوراً");
+    } else {
+        console.log("⚠️ لم يتم إرسال إشعار للمريض لعدم توفر fcm_token مع الطلب");
     }
 } catch (patientErr) {
     console.error("❌ فشل إرسال إشعار المريض:", patientErr.message);
