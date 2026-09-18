@@ -1450,58 +1450,279 @@ cron.schedule('0 * * * *', async () => {
 });
 // --- 5. نظام الاستشارات الطبية (تم تعريفهم مرة واحدة فقط) ---
 
-// API لاستقبال الاستشارة الطبية من الموقع
+// =========================================================
+// 🩺 استقبال استفسار جديد من صفحة "احكي أعراضك"
+// =========================================================
+
 app.post('/api/consultations', async (req, res) => {
-    const { name, phone, question } = req.body;
+
+    const {
+        name,
+        phone,
+        question
+    } = req.body;
+
+    // -----------------------------------------
+    // التحقق من البيانات
+    // -----------------------------------------
+    if (!question || !question.trim()) {
+        return res.status(400).json({
+            success: false,
+            error: "من فضلك اكتب الأعراض أو الاستفسار أولاً."
+        });
+    }
+
     try {
+
+        // -----------------------------------------
+        // حفظ الاستفسار
+        // -----------------------------------------
         const { data, error } = await supabase
             .from('consultations')
-            .insert([{ name, phone, question, status: 'pending' }]);
+            .insert([{
+                name: name?.trim() || 'مستخدم منصة دكتور',
+                phone: phone?.trim() || '',
+                question: question.trim(),
+                answer: '',
+                status: 'pending',
+                specialty: null,
+                doctor_id: null,
+                service_id: null,
+                is_published: false
+            }])
+            .select()
+            .single();
 
-        if (error) throw error;
+        if (error) {
+            console.error(
+                "❌ خطأ Supabase أثناء حفظ الاستفسار:",
+                error
+            );
 
-        const message = `🩺 **استشارة جديدة من:** ${name}%0A📞 **موبايل:** ${phone}%0A❓ **السؤال:** ${question}`;
-        await axios.post(`https://api.telegram.org/bot8639669118:AAGOpN9rtWDl_J3kmhoBK3PddqI14jPqEgw/sendMessage`, {
-            chat_id: 6635887452,
-            text: message,
-            parse_mode: 'Markdown'
+            throw error;
+        }
+
+        // -----------------------------------------
+        // 🔔 إرسال تنبيه Telegram للأدمن
+        // -----------------------------------------
+        try {
+
+            const telegramMessage = `
+🩺 **استفسار جديد من منصة دكتور**
+
+👤 **الاسم:** ${name?.trim() || 'غير مسجل'}
+
+📞 **الموبايل:** ${phone?.trim() || 'غير متاح'}
+
+❓ **الأعراض / الاستفسار:**
+${question.trim()}
+
+🆔 **رقم الاستفسار:** ${data.id}
+
+🔔 الحالة: في انتظار المراجعة
+            `;
+
+            // استخدم هنا نفس بيانات Telegram الموجودة حاليًا
+            // في السيرفر، ولا تنشئ Bot جديدًا.
+
+            const telegramUrl =
+                `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
+
+            await axios.post(telegramUrl, {
+                chat_id: process.env.TELEGRAM_CHAT_ID,
+                text: telegramMessage,
+                parse_mode: 'Markdown'
+            });
+
+            console.log(
+                "✅ تم إرسال تنبيه الاستفسار إلى Telegram"
+            );
+
+        } catch (telegramError) {
+
+            console.error(
+                "⚠️ تم حفظ الاستفسار لكن فشل Telegram:",
+                telegramError.response?.data ||
+                telegramError.message
+            );
+
+        }
+
+        // -----------------------------------------
+        // الرد للمريض
+        // -----------------------------------------
+        res.status(201).json({
+            success: true,
+            message:
+                "تم استلام استفسارك بنجاح وسيتم مراجعته من فريق منصة دكتور.",
+            consultation_id: data.id
         });
 
-        res.json({ success: true, message: "تم إرسال استشارتك بنجاح!" });
     } catch (err) {
-        console.error("❌ خطأ في استقبال الاستشارة:", err);
-        res.status(500).json({ error: "فشل إرسال الاستشارة" });
+
+        console.error(
+            "❌ خطأ في استقبال الاستفسار:",
+            err
+        );
+
+        res.status(500).json({
+            success: false,
+            error: "حدث خطأ أثناء إرسال الاستفسار."
+        });
     }
 });
 
 // API لعرض الأسئلة التي تم الرد عليها للجمهور
+// =========================================================
+// 🌍 الاستفسارات المنشورة للعامة
+// =========================================================
+
 app.get('/api/consultations/answered', async (req, res) => {
+
     try {
+
         const { data, error } = await supabase
             .from('consultations')
-            .select('*')
+            .select(`
+                id,
+                question,
+                answer,
+                specialty,
+                doctor_id,
+                service_id,
+                created_at
+            `)
             .eq('status', 'answered')
-            .order('created_at', { ascending: false });
+            .eq('is_published', true)
+            .order('created_at', {
+                ascending: false
+            });
 
-        if (error) throw error;
-        res.json(data);
+        if (error) {
+            throw error;
+        }
+
+        res.json(data || []);
+
     } catch (err) {
-        res.status(500).json({ error: "فشل جلب الاستشارات" });
+
+        console.error(
+            "❌ خطأ في جلب الاستفسارات المنشورة:",
+            err
+        );
+
+        res.status(500).json({
+            error: "فشل جلب الاستفسارات المنشورة"
+        });
     }
 });
 // 1. API خاص بصفحة الأدمن لجلب جَميع الاستشارات (المعلقة والمردود عليها)
-app.get('/api/admin/consultations', async (req, res) => {
+// =========================================================
+// ⚙️ تحديث استشارة من لوحة الإدارة
+// =========================================================
+
+app.put('/api/admin/consultations/:id', async (req, res) => {
+
+    const consultationId = parseInt(req.params.id);
+
+    const {
+        answer,
+        status,
+        specialty,
+        doctor_id,
+        service_id,
+        is_published
+    } = req.body;
+
+    if (isNaN(consultationId)) {
+
+        return res.status(400).json({
+            success: false,
+            error: "معرف الاستشارة غير صحيح"
+        });
+    }
+
     try {
+
+        // -----------------------------------------
+        // تجهيز بيانات التحديث
+        // -----------------------------------------
+
+        const updateData = {
+            answer: answer || '',
+            status: status || 'pending',
+            specialty: specialty || null,
+            doctor_id: doctor_id
+                ? parseInt(doctor_id)
+                : null,
+            service_id: service_id || null,
+            is_published: Boolean(is_published)
+        };
+
+        // -----------------------------------------
+        // تسجيل وقت الرد
+        // -----------------------------------------
+
+        if (
+            status === 'answered' &&
+            answer &&
+            answer.trim()
+        ) {
+            updateData.answered_at =
+                new Date().toISOString();
+        }
+
+        // -----------------------------------------
+        // تسجيل وقت النشر
+        // -----------------------------------------
+
+        if (is_published === true) {
+            updateData.published_at =
+                new Date().toISOString();
+        }
+
+        // -----------------------------------------
+        // التحديث
+        // -----------------------------------------
+
         const { data, error } = await supabase
             .from('consultations')
-            .select('*')
-            .order('created_at', { ascending: false }); // جلب الكل وترتيبها من الأحدث للأقدم
+            .update(updateData)
+            .eq('id', consultationId)
+            .select()
+            .single();
 
-        if (error) throw error;
-        res.json(data);
+        if (error) {
+
+            console.error(
+                "❌ خطأ Supabase:",
+                error
+            );
+
+            throw error;
+        }
+
+        console.log(
+            `✅ تم تحديث الاستشارة رقم ${consultationId}`
+        );
+
+        res.json({
+            success: true,
+            message: "تم تحديث الاستشارة بنجاح",
+            data
+        });
+
     } catch (err) {
-        console.error("❌ خطأ في جلب استشارات الأدمن:", err);
-        res.status(500).json({ error: "فشل جلب الاستشارات للأدمن" });
+
+        console.error(
+            "❌ خطأ في تحديث الاستشارة:",
+            err
+        );
+
+        res.status(500).json({
+            success: false,
+            error: "فشل تحديث الاستشارة"
+        });
     }
 });
 
