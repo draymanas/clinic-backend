@@ -229,7 +229,12 @@ app.get('/sitemap.xml', async (req, res) => {
         <changefreq>weekly</changefreq>
         <priority>0.95</priority>
       </url>
-      `
+      `,
+      `<url>
+  <loc>${baseUrl}/symptoms</loc>
+  <changefreq>daily</changefreq>
+  <priority>0.9</priority>
+</url>`
     ];
 
     // 🌟 إضافة صفحات المقالات والخدمات التخصصية لخريطة الموقع
