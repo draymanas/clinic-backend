@@ -383,12 +383,58 @@ const sendTelegramAlert = async (doctorData) => {
         console.error("❌ خطأ تليجرام:", error.response?.data || error.message);
     }
 };
+
+// 🔢 تحويل الأرقام العربية والفارسية إلى أرقام إنجليزية
+const normalizeFee = (value) => {
+    if (value === undefined || value === null) {
+        return null;
+    }
+
+    let fee = String(value).trim();
+
+    // تحويل الأرقام العربية ٠١٢٣٤٥٦٧٨٩
+    fee = fee.replace(/[٠-٩]/g, (digit) => {
+        return String(digit.charCodeAt(0) - 0x0660);
+    });
+
+    // تحويل الأرقام الفارسية ۰۱۲۳۴۵۶۷۸۹
+    fee = fee.replace(/[۰-۹]/g, (digit) => {
+        return String(digit.charCodeAt(0) - 0x06F0);
+    });
+
+    // إزالة المسافات
+    fee = fee.replace(/\s+/g, '');
+
+    // إزالة الفواصل العربية والإنجليزية
+    fee = fee.replace(/[,،]/g, '');
+
+    // لو الطبيب كتب جنيه / ج / EGP
+    fee = fee.replace(/جنيه|ج|EGP/gi, '');
+
+    fee = fee.trim();
+
+    // لو القيمة أصبحت فارغة
+    if (!fee) {
+        return null;
+    }
+
+    // التأكد أن القيمة رقم صحيح أو عشري
+    const numericFee = Number(fee);
+
+    if (!Number.isFinite(numericFee)) {
+        throw new Error(`سعر الكشف غير صالح: ${value}`);
+    }
+
+    return numericFee;
+};
+
 app.post('/register-doctor', upload.single('image'), async (req, res) => {
     try {
         const { 
             name, mobile, specialty, fee, availability, 
             address, personal_mobile, title, city, area, bio, password
         } = req.body;
+        const normalizedFee = normalizeFee(fee);
         
         let image_url = '';
 
@@ -431,7 +477,7 @@ app.post('/register-doctor', upload.single('image'), async (req, res) => {
             name,                  // $1
             mobile,                // $2
             specialty,             // $3
-            fee,                   // $4
+            normalizedFee,         // $4
             availability,          // $5
             address,               // $6
             personal_mobile,       // $7
@@ -460,82 +506,238 @@ app.post('/register-doctor', upload.single('image'), async (req, res) => {
     }
 });
 
-// --- تحديث بيانات الطبيب المطور (Update Doctor with Cloudinary) ---
+// --- تحديث بيانات الطبيب مع الحفاظ على البيانات القديمة ---
 app.put('/api/update-doctor/:id', upload.single('image'), async (req, res) => {
     const { id } = req.params;
+
     try {
-        // 1. استخراج كل الحقول من req.body
-        const { 
-            name, specialty, fee, availability, address, title,
-            mobile, personal_mobile, city, area, bio, password
+
+        // =========================================================
+        // 1. استخراج البيانات المرسلة
+        // =========================================================
+        const {
+            name,
+            specialty,
+            fee,
+            availability,
+            address,
+            title,
+            mobile,
+            personal_mobile,
+            city,
+            area,
+            bio,
+            password
         } = req.body;
 
-        // الاحتفاظ برابط الصورة القديم في حال لم يقم الطبيب برفع صورة جديدة
-        let image_url = req.body.image_url; 
 
-        // 🌟 2. إذا قام الطبيب باختيار صورة جديدة، يتم رفعها مباشرة إلى Cloudinary
+        // =========================================================
+        // 2. دالة لتحويل الحقول الفارغة إلى null
+        //    حتى لا تمسح البيانات القديمة
+        // =========================================================
+        const keepOldValue = (value) => {
+            if (
+                value === undefined ||
+                value === null ||
+                String(value).trim() === ''
+            ) {
+                return null;
+            }
+
+            return value;
+        };
+
+
+        // =========================================================
+        // 3. توحيد سعر الكشف
+        //    يقبل 500 أو ٥٠٠ أو 1,000 أو ١٬٠٠٠
+        // =========================================================
+        let normalizedFee = null;
+
+        if (
+            fee !== undefined &&
+            fee !== null &&
+            String(fee).trim() !== ''
+        ) {
+            normalizedFee = String(fee).trim();
+
+            // الأرقام العربية ٠١٢٣٤٥٦٧٨٩
+            normalizedFee = normalizedFee.replace(/[٠-٩]/g, (digit) => {
+                return String(digit.charCodeAt(0) - 0x0660);
+            });
+
+            // الأرقام الفارسية ۰۱۲۳۴۵۶۷۸۹
+            normalizedFee = normalizedFee.replace(/[۰-۹]/g, (digit) => {
+                return String(digit.charCodeAt(0) - 0x06F0);
+            });
+
+            // إزالة المسافات
+            normalizedFee = normalizedFee.replace(/\s+/g, '');
+
+            // إزالة الفواصل العربية والإنجليزية
+            normalizedFee = normalizedFee.replace(/[,،٬]/g, '');
+
+            // إزالة العملة إذا كتبها الطبيب
+            normalizedFee = normalizedFee.replace(/جنيه|ج|EGP/gi, '');
+
+            normalizedFee = normalizedFee.trim();
+
+            const numericFee = Number(normalizedFee);
+
+            if (!Number.isFinite(numericFee)) {
+                return res.status(400).json({
+                    error: `سعر الكشف غير صالح: ${fee}`
+                });
+            }
+
+            normalizedFee = numericFee;
+        }
+
+
+        // =========================================================
+        // 4. الصورة
+        // =========================================================
+        // لا نغير الصورة إذا لم يتم رفع صورة جديدة
+        let newImageUrl = null;
+
         if (req.file) {
+
             try {
+
                 const uploadResult = await new Promise((resolve, reject) => {
+
                     const uploadStream = cloudinary.uploader.upload_stream(
                         {
                             folder: 'doctors',
                             transformation: [
-                                { quality: 'auto', fetch_format: 'auto' } // ضغط ذكي وتحويل لصيغة webp خفيفة
+                                {
+                                    quality: 'auto',
+                                    fetch_format: 'auto'
+                                }
                             ]
                         },
+
                         (error, result) => {
                             if (error) return reject(error);
                             resolve(result);
                         }
                     );
+
                     uploadStream.end(req.file.buffer);
                 });
 
-                image_url = uploadResult.secure_url;
-                console.log("✅ تم تحديث ورفع صورة الطبيب بنجاح على Cloudinary:", image_url);
+                newImageUrl = uploadResult.secure_url;
+
+                console.log(
+                    "✅ تم تحديث ورفع صورة الطبيب على Cloudinary:",
+                    newImageUrl
+                );
+
             } catch (cloudErr) {
-                console.error("❌ خطأ أثناء رفع الصورة المحدثة على Cloudinary:", cloudErr.message);
+
+                console.error(
+                    "❌ خطأ أثناء رفع الصورة الجديدة:",
+                    cloudErr.message
+                );
+
+                // لا نفشل التحديث كله بسبب الصورة
+                newImageUrl = null;
             }
         }
 
-        // 🌟 3. تحديث الاستعلام (Query) بكل البيانات مع الرابط السحابي الجديد
+
+        // =========================================================
+        // 5. تحديث البيانات
+        //
+        // COALESCE تعني:
+        // إذا أرسل الطبيب قيمة جديدة استخدمها
+        // وإذا لم يرسل قيمة احتفظ بالقيمة القديمة
+        // =========================================================
+
         const query = `
-            UPDATE doctors 
-            SET name=$1, specialty=$2, fee=$3, mobile=$4, availability=$5, 
-                address=$6, personal_mobile=$7, title=$8, city=$9, area=$10, 
-                image_url=$11, bio=$12, password=$13
-            WHERE id=$14 
-            RETURNING *`;
+            UPDATE doctors
+            SET
+                name = COALESCE($1, name),
+                specialty = COALESCE($2, specialty),
+                fee = COALESCE($3, fee),
+                mobile = COALESCE($4, mobile),
+                availability = COALESCE($5, availability),
+                address = COALESCE($6, address),
+                personal_mobile = COALESCE($7, personal_mobile),
+                title = COALESCE($8, title),
+                city = COALESCE($9, city),
+                area = COALESCE($10, area),
+                image_url = COALESCE($11, image_url),
+                bio = COALESCE($12, bio),
+                password = COALESCE($13, password)
+
+            WHERE id = $14
+
+            RETURNING *
+        `;
+
+
+        // =========================================================
+        // 6. القيم
+        // =========================================================
 
         const values = [
-            name,             // $1
-            specialty,        // $2
-            fee,              // $3
-            mobile,           // $4
-            availability,     // $5
-            address,          // $6
-            personal_mobile,  // $7
-            title,            // $8
-            city,             // $9
-            area,             // $10
-            image_url,        // $11 (رابط Cloudinary الجديد أو الرابط القديم)
-            bio,              // $12
-            password,         // $13
-            id                // $14
+            keepOldValue(name),             // $1
+            keepOldValue(specialty),        // $2
+            normalizedFee,                  // $3
+            keepOldValue(mobile),           // $4
+            keepOldValue(availability),     // $5
+            keepOldValue(address),          // $6
+            keepOldValue(personal_mobile),  // $7
+            keepOldValue(title),            // $8
+            keepOldValue(city),             // $9
+            keepOldValue(area),             // $10
+            newImageUrl,                    // $11
+            keepOldValue(bio),              // $12
+            keepOldValue(password),         // $13
+            id                              // $14
         ];
+
+
+        // =========================================================
+        // 7. تنفيذ التحديث
+        // =========================================================
 
         const result = await pool.query(query, values);
 
-        res.json({ 
-            success: true, 
-            message: "✅ تم تحديث كافة بياناتك بنجاح", 
-            doctor: result.rows[0] 
+
+        // الطبيب غير موجود
+        if (result.rows.length === 0) {
+
+            return res.status(404).json({
+                error: "الطبيب غير موجود"
+            });
+
+        }
+
+
+        // =========================================================
+        // 8. الرد
+        // =========================================================
+
+        res.json({
+            success: true,
+            message: "✅ تم تحديث البيانات بنجاح",
+            doctor: result.rows[0]
         });
 
+
     } catch (err) {
-        console.error("❌ خطأ في التحديث:", err);
-        res.status(500).json({ error: "فشل تحديث البيانات، تأكد من مطابقة أعمدة قاعدة البيانات" });
+
+        console.error(
+            "❌ خطأ في تحديث بيانات الطبيب:",
+            err
+        );
+
+        res.status(500).json({
+            error: "فشل تحديث البيانات: " + err.message
+        });
+
     }
 });
 
