@@ -20,6 +20,32 @@ const { initializeApp, cert } = require('firebase-admin/app');
 const { getMessaging } = require('firebase-admin/messaging');
 const serviceAccount = require('./serviceAccountKey.json');
 
+const cloudinary = require('cloudinary').v2;
+
+// إعداد كلاودينري باستخدام المفاتيح
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'enxkc3ah',
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// 🌟 دالة مساعدة لرفع الصورة كـ Buffer مباشرة من الذاكرة إلى كلاودينري
+const uploadBufferToCloudinary = (fileBuffer, folder = 'doctors') => {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: folder,
+        transformation: [{ quality: 'auto', fetch_format: 'auto' }]
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result.secure_url);
+      }
+    );
+    uploadStream.end(fileBuffer);
+  });
+};
+
 // التهيئة الصحيحة للمكتبة الحديثة
 initializeApp({
   credential: cert(serviceAccount)
