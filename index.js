@@ -1775,18 +1775,18 @@ cron.schedule('0 12 * * *', async () => {
 });
 
 // =========================================================================
-// 🔄 مسار ترحيل كافة صور الأطباء القديمة من Supabase إلى Cloudinary
+// 🔄 مسار ترحيل الصور المتقدم عبر الـ SDK الداخلي (يتجاوز حظر 402)
 // =========================================================================
 app.get('/api/migrate-images-to-cloudinary', async (req, res) => {
     try {
-        console.log("🚀 بدء فحص وترحيل صور الأطباء إلى Cloudinary...");
+        console.log("🚀 بدء الترحيل الداخلي لصور الأطباء لتجاوز خطأ 402...");
 
-        // 1. جلب الأطباء الذين ما زالت صورهم مستضافة على supabase
+        // 1. جلب الأطباء الذين لديهم صور على Supabase
         const { rows: docs } = await pool.query(
             "SELECT id, name, image_url FROM doctors WHERE image_url LIKE '%supabase.co%' AND image_url IS NOT NULL"
         );
 
-        console.log(`📋 تم العثور على (${docs.length}) طبيب بحاجة لنقل صورهم.`);
+        console.log(`📋 تم العثور على (${docs.length}) طبيب.`);
 
         let successCount = 0;
         let failedCount = 0;
@@ -1794,13 +1794,44 @@ app.get('/api/migrate-images-to-cloudinary', async (req, res) => {
 
         for (const doc of docs) {
             try {
-                // كلاودينري يستطيع سحب الصورة مباشرة من الرابط القديم وحفظها عنده!
-                const uploadRes = await cloudinary.uploader.upload(doc.image_url, {
-                    folder: 'doctors',
-                    transformation: [{ quality: 'auto', fetch_format: 'auto' }]
+                // استخراج اسم الملف فقط من الرابط (مثلاً: 1789909506739-85850382.jpg)
+                const urlParts = doc.image_url.split('/avatars/');
+                const fileName = urlParts[urlParts.length - 1];
+
+                if (!fileName) {
+                    throw new Error("لم نتمكن من استخراج اسم الملف من الرابط");
+                }
+
+                // 🌟 تحميل الملف كـ Buffer داخلياً عبر Supabase SDK (يتخطى حظر الروابط العامة 402)
+                const { data: fileData, error: downloadError } = await supabase
+                    .storage
+                    .from('avatars')
+                    .download(fileName);
+
+                if (downloadError || !fileData) {
+                    throw new Error(`فشل التحميل من سوبابيز: ${downloadError?.message}`);
+                }
+
+                // تحويل الـ Blob إلى Buffer
+                const arrayBuffer = await fileData.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+
+                // 🌟 رفع الـ Buffer مباشرة إلى Cloudinary
+                const uploadResult = await new Promise((resolve, reject) => {
+                    const uploadStream = cloudinary.uploader.upload_stream(
+                        {
+                            folder: 'doctors',
+                            transformation: [{ quality: 'auto', fetch_format: 'auto' }]
+                        },
+                        (err, result) => {
+                            if (err) return reject(err);
+                            resolve(result);
+                        }
+                    );
+                    uploadStream.end(buffer);
                 });
 
-                const newCloudinaryUrl = uploadRes.secure_url;
+                const newCloudinaryUrl = uploadResult.secure_url;
 
                 // تحديث الرابط الجديد في قاعدة البيانات
                 await pool.query(
@@ -1810,17 +1841,17 @@ app.get('/api/migrate-images-to-cloudinary', async (req, res) => {
 
                 successCount++;
                 details.push({ id: doc.id, name: doc.name, status: 'نجح ✅', url: newCloudinaryUrl });
-                console.log(`✅ [${successCount}/${docs.length}] تم نقل صورة د. ${doc.name}`);
+                console.log(`✅ [${successCount}/${docs.length}] تم بنجاح نقل صورة: ${doc.name}`);
 
             } catch (err) {
                 failedCount++;
                 details.push({ id: doc.id, name: doc.name, status: 'فشل ❌', error: err.message });
-                console.error(`❌ فشل نقل صورة د. ${doc.name}:`, err.message);
+                console.error(`❌ فشل مع الطبيب ${doc.name}:`, err.message);
             }
         }
 
         res.json({
-            message: "اكتملت عملية الترحيل!",
+            message: "انتهت عملية الترحيل الداخلي!",
             total: docs.length,
             success: successCount,
             failed: failedCount,
@@ -1828,7 +1859,7 @@ app.get('/api/migrate-images-to-cloudinary', async (req, res) => {
         });
 
     } catch (error) {
-        console.error("❌ خطأ عام في عملية الترحيل:", error);
+        console.error("❌ خطأ عام:", error);
         res.status(500).json({ error: error.message });
     }
 });
