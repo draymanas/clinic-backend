@@ -383,7 +383,6 @@ const sendTelegramAlert = async (doctorData) => {
         console.error("❌ خطأ تليجرام:", error.response?.data || error.message);
     }
 };
-
 app.post('/register-doctor', upload.single('image'), async (req, res) => {
     try {
         const { 
@@ -393,127 +392,147 @@ app.post('/register-doctor', upload.single('image'), async (req, res) => {
         
         let image_url = '';
 
-        // إذا تم رفع صورة، نقوم برفعها لسوبابيز فوراً
+        // 🌟 1. رفع الصورة مباشرة إلى Cloudinary باستخدام Buffer من الذاكرة
         if (req.file) {
-            // اسم فريد للملف باستخدام الوقت عشان ميتكررش
-           // 1. استخراج الامتداد من الملف الأصلي (مثلاً .jpg)
-          const fileExtension = req.file.originalname.split('.').pop();
-// 2. تكوين اسم جديد "رقمي" بالكامل مع الحفاظ على الامتداد
-          const fileName = `${Date.now()}-${Math.round(Math.random() * 1E9)}.${fileExtension}`;
-
-            // 1. عملية الرفع لـ Supabase Storage
-            const { data, error } = await supabase.storage
-                .from('avatars') // تأكد إن اسم الـ Bucket عندك "avatars" وهو Public
-                .upload(fileName, req.file.buffer, {
-                    contentType: req.file.mimetype,
-                    upsert: false
+            try {
+                const uploadResult = await new Promise((resolve, reject) => {
+                    const uploadStream = cloudinary.uploader.upload_stream(
+                        {
+                            folder: 'doctors',
+                            transformation: [
+                                { quality: 'auto', fetch_format: 'auto' } // ضغط ذكي وتحويل تلقائي لأفضل صيغة
+                            ]
+                        },
+                        (error, result) => {
+                            if (error) return reject(error);
+                            resolve(result);
+                        }
+                    );
+                    uploadStream.end(req.file.buffer);
                 });
 
-            if (error) {
-                console.error("❌ خطأ رفع الصورة لسوبابيز:", error.message);
-                throw new Error("فشل رفع الصورة للسحابة");
+                image_url = uploadResult.secure_url;
+                console.log("✅ تم رفع صورة الطبيب بنجاح على Cloudinary:", image_url);
+            } catch (cloudErr) {
+                console.error("❌ خطأ رفع الصورة على Cloudinary:", cloudErr.message);
+                // لا نوقف عملية التسجيل إذا حدث خطأ بالصورة، يتم إكمال البيانات
             }
-
-            // 2. الحصول على الرابط العام المباشر للصورة
-            const { data: publicUrlData } = supabase.storage
-                .from('avatars')
-                .getPublicUrl(fileName);
-
-            image_url = publicUrlData.publicUrl;
         }
         
-        // 3. تخزين الرابط الجديد في قاعدة البيانات (SQL)
-       // 3. تخزين البيانات في قاعدة البيانات (SQL)
-const query = `
-    INSERT INTO doctors 
-    (name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, bio, password, image_url, is_active) 
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) 
-    RETURNING *`;
+        // 🌟 2. تخزين البيانات والرابط السحابي الجديد في قاعدة البيانات (PostgreSQL / Supabase)
+        const query = `
+            INSERT INTO doctors 
+            (name, mobile, specialty, fee, availability, address, personal_mobile, title, city, area, bio, password, image_url, is_active) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) 
+            RETURNING *`;
 
-// هنا لازم نبعت 14 قيمة بالظبط عشان سوبابيز توافق
-const values = [
-    name,             // $1
-    mobile,           // $2
-    specialty,        // $3
-    fee,              // $4
-    availability,     // $5
-    address,          // $6
-    personal_mobile,  // $7
-    title,            // $8
-    city,             // $9
-    area,               // $10
-    bio,               // $11  
-   password || '1234',    // $12
-    image_url,        // $13
-    false             // $14 (قيمة is_active الافتراضية)
-]; 
+        // إرسال القيم الـ 14 بدقة
+        const values = [
+            name,                  // $1
+            mobile,                // $2
+            specialty,             // $3
+            fee,                   // $4
+            availability,          // $5
+            address,               // $6
+            personal_mobile,       // $7
+            title,                 // $8
+            city,                  // $9
+            area,                  // $10
+            bio,                   // $11  
+            password || '1234',    // $12
+            image_url,             // $13 (رابط Cloudinary الآمن)
+            false                  // $14 (قيمة is_active الافتراضية في انتظار تفعيل الإدارة)
+        ]; 
+
         const result = await pool.query(query, values);
-        res.json({ message: "تم إرسال الطلب بنجاح وفي انتظار تفعيل الإدارة", doctor: result.rows[0] });
+        
+        res.json({ 
+            message: "تم إرسال الطلب بنجاح وفي انتظار تفعيل الإدارة", 
+            doctor: result.rows[0] 
+        });
+
+        // 🌟 3. إرسال تنبيه تليجرام للإدارة
         await sendTelegramAlert(req.body);
+
     } catch (err) {
         console.error("❌ خطأ تسجيل دكتور:", err.message);
         res.status(500).json({ error: "فشل في تسجيل البيانات: " + err.message });
     }
 });
 
-// --- تحديث بيانات الطبيب المطور (Update Doctor) ---
+// --- تحديث بيانات الطبيب المطور (Update Doctor with Cloudinary) ---
 app.put('/api/update-doctor/:id', upload.single('image'), async (req, res) => {
     const { id } = req.params;
     try {
-        // 1. استخراج كل الحقول الجديدة من req.body
+        // 1. استخراج كل الحقول من req.body
         const { 
             name, specialty, fee, availability, address, title,
             mobile, personal_mobile, city, area, bio, password
         } = req.body;
 
+        // الاحتفاظ برابط الصورة القديم في حال لم يقم الطبيب برفع صورة جديدة
         let image_url = req.body.image_url; 
 
-        // 2. معالجة الصورة (كما هي في كودك الأصلي)
+        // 🌟 2. إذا قام الطبيب باختيار صورة جديدة، يتم رفعها مباشرة إلى Cloudinary
         if (req.file) {
-            const fileExtension = req.file.originalname.split('.').pop();
-            const fileName = `updated-${Date.now()}-${Math.round(Math.random() * 1E9)}.${fileExtension}`;
+            try {
+                const uploadResult = await new Promise((resolve, reject) => {
+                    const uploadStream = cloudinary.uploader.upload_stream(
+                        {
+                            folder: 'doctors',
+                            transformation: [
+                                { quality: 'auto', fetch_format: 'auto' } // ضغط ذكي وتحويل لصيغة webp خفيفة
+                            ]
+                        },
+                        (error, result) => {
+                            if (error) return reject(error);
+                            resolve(result);
+                        }
+                    );
+                    uploadStream.end(req.file.buffer);
+                });
 
-            const { data, error } = await supabase.storage
-                .from('avatars')
-                .upload(fileName, req.file.buffer, { contentType: req.file.mimetype });
-
-            if (!error) {
-                const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
-                image_url = publicUrlData.publicUrl;
+                image_url = uploadResult.secure_url;
+                console.log("✅ تم تحديث ورفع صورة الطبيب بنجاح على Cloudinary:", image_url);
+            } catch (cloudErr) {
+                console.error("❌ خطأ أثناء رفع الصورة المحدثة على Cloudinary:", cloudErr.message);
             }
         }
 
-        // 3. تحديث الاستعلام (Query) ليشمل كل الأعمدة الجديدة
-// في ملف السيرفر (Update Route)
+        // 🌟 3. تحديث الاستعلام (Query) بكل البيانات مع الرابط السحابي الجديد
+        const query = `
+            UPDATE doctors 
+            SET name=$1, specialty=$2, fee=$3, mobile=$4, availability=$5, 
+                address=$6, personal_mobile=$7, title=$8, city=$9, area=$10, 
+                image_url=$11, bio=$12, password=$13
+            WHERE id=$14 
+            RETURNING *`;
 
-const query = `
-    UPDATE doctors 
-    SET name=$1, specialty=$2, fee=$3, mobile=$4, availability=$5, 
-        address=$6, personal_mobile=$7, title=$8, city=$9, area=$10, 
-        image_url=$11, bio=$12, password=$13
-    WHERE id=$14 
-    RETURNING *`;
-
-const values = [
-    name,             // $1
-    specialty,        // $2
-    fee,              // $3
-    mobile,           // $4 (رقم الحجز - العمود الخامس في سوبا لو شلنا الـ id)
-    availability,     // $5
-    address,          // $6
-    personal_mobile,  // $7 (الرقم الشخصي - العمود الثامن في سوبا لو شلنا الـ id)
-    title,            // $8
-    city,             // $9
-    area,             // $10
-    image_url,        // $11
-    bio,              // $12
-    password,         // $13
-    id                // $14
-];
+        const values = [
+            name,             // $1
+            specialty,        // $2
+            fee,              // $3
+            mobile,           // $4
+            availability,     // $5
+            address,          // $6
+            personal_mobile,  // $7
+            title,            // $8
+            city,             // $9
+            area,             // $10
+            image_url,        // $11 (رابط Cloudinary الجديد أو الرابط القديم)
+            bio,              // $12
+            password,         // $13
+            id                // $14
+        ];
 
         const result = await pool.query(query, values);
 
-        res.json({ success: true, message: "✅ تم تحديث كافة بياناتك بنجاح", doctor: result.rows[0] });
+        res.json({ 
+            success: true, 
+            message: "✅ تم تحديث كافة بياناتك بنجاح", 
+            doctor: result.rows[0] 
+        });
+
     } catch (err) {
         console.error("❌ خطأ في التحديث:", err);
         res.status(500).json({ error: "فشل تحديث البيانات، تأكد من مطابقة أعمدة قاعدة البيانات" });
@@ -1754,6 +1773,66 @@ cron.schedule('0 12 * * *', async () => {
     scheduled: true,
     timezone: "Africa/Cairo"
 });
+
+// =========================================================================
+// 🔄 مسار ترحيل كافة صور الأطباء القديمة من Supabase إلى Cloudinary
+// =========================================================================
+app.get('/api/migrate-images-to-cloudinary', async (req, res) => {
+    try {
+        console.log("🚀 بدء فحص وترحيل صور الأطباء إلى Cloudinary...");
+
+        // 1. جلب الأطباء الذين ما زالت صورهم مستضافة على supabase
+        const { rows: docs } = await pool.query(
+            "SELECT id, name, image_url FROM doctors WHERE image_url LIKE '%supabase.co%' AND image_url IS NOT NULL"
+        );
+
+        console.log(`📋 تم العثور على (${docs.length}) طبيب بحاجة لنقل صورهم.`);
+
+        let successCount = 0;
+        let failedCount = 0;
+        const details = [];
+
+        for (const doc of docs) {
+            try {
+                // كلاودينري يستطيع سحب الصورة مباشرة من الرابط القديم وحفظها عنده!
+                const uploadRes = await cloudinary.uploader.upload(doc.image_url, {
+                    folder: 'doctors',
+                    transformation: [{ quality: 'auto', fetch_format: 'auto' }]
+                });
+
+                const newCloudinaryUrl = uploadRes.secure_url;
+
+                // تحديث الرابط الجديد في قاعدة البيانات
+                await pool.query(
+                    "UPDATE doctors SET image_url = $1 WHERE id = $2",
+                    [newCloudinaryUrl, doc.id]
+                );
+
+                successCount++;
+                details.push({ id: doc.id, name: doc.name, status: 'نجح ✅', url: newCloudinaryUrl });
+                console.log(`✅ [${successCount}/${docs.length}] تم نقل صورة د. ${doc.name}`);
+
+            } catch (err) {
+                failedCount++;
+                details.push({ id: doc.id, name: doc.name, status: 'فشل ❌', error: err.message });
+                console.error(`❌ فشل نقل صورة د. ${doc.name}:`, err.message);
+            }
+        }
+
+        res.json({
+            message: "اكتملت عملية الترحيل!",
+            total: docs.length,
+            success: successCount,
+            failed: failedCount,
+            details: details
+        });
+
+    } catch (error) {
+        console.error("❌ خطأ عام في عملية الترحيل:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`
     🚀 ==========================================
