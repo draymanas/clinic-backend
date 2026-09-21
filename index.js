@@ -1570,41 +1570,51 @@ app.get('/api/patient-appointments/:mobile', async (req, res) => {
     res.status(500).json({ error: "فشل جلب سجل الحجوزات للمريض" });
   }
 });
-
+// =========================================================
+// ⭐ نظام التقييمات الحقيقي وإضافة رأي المريض
+// =========================================================
 app.post('/api/rate-doctor', async (req, res) => {
-  const { doctor_id, rating } = req.body;
+  const { doctor_id, rating, comment, patient_name } = req.body;
   
-  // 1. التحقق من صحة المدخلات
-  if (!doctor_id || !rating || rating < 1 || rating > 5) {
+  const numRating = parseFloat(rating);
+  if (!doctor_id || isNaN(numRating) || numRating < 1 || numRating > 5) {
     return res.status(400).json({ error: "بيانات التقييم غير صالحة" });
   }
 
   try {
-    // 2. جلب القيم الحالية
+    // 1. جلب القيم الحالية للطبيب
     const docCheck = await pool.query('SELECT rating_sum, rating_count FROM doctors WHERE id = $1', [doctor_id]);
     
     if (docCheck.rows.length === 0) {
       return res.status(404).json({ error: "الطبيب غير موجود" });
     }
 
-    // التأكد من تحويل القيم لأرقام لتجنب أي خطأ في الحساب
     const currentSum = parseFloat(docCheck.rows[0].rating_sum) || 0;
     const currentCount = parseInt(docCheck.rows[0].rating_count) || 0;
 
-    // 3. حساب القيم الجديدة
+    // 2. حساب المتوسط الجديد
     const newCount = currentCount + 1;
-    const newSum = currentSum + parseFloat(rating);
+    const newSum = currentSum + numRating;
     const newRating = Math.round((newSum / newCount) * 10) / 10; 
 
-    // 4. تحديث قاعدة البيانات
+    // 3. تحديث جدول الأطباء
     await pool.query(
       'UPDATE doctors SET rating_sum = $1, rating_count = $2, rating = $3 WHERE id = $4',
       [newSum, newCount, newRating, doctor_id]
     );
 
-    // 5. إرسال الرد للفرونت إند
+    // 4. حفظ التعليق ورأي المريض في جدول المراجعات (إن وجد الجدول)
+    try {
+      await pool.query(
+        'INSERT INTO doctor_reviews (doctor_id, patient_name, rating, comment) VALUES ($1, $2, $3, $4)',
+        [doctor_id, patient_name?.trim() || 'مريض مجهول', numRating, comment?.trim() || '']
+      );
+    } catch (revErr) {
+      console.warn("⚠️ لم يتم حفظ التعليق في جدول doctor_reviews (تأكد من إنشائه):", revErr.message);
+    }
+
     res.json({ 
-      message: "تم تسجيل التقييم بنجاح", 
+      message: "تم تسجيل تقييمك بنجاح! شكراً لك.", 
       rating: newRating,
       rating_count: newCount 
     });
@@ -1612,6 +1622,21 @@ app.post('/api/rate-doctor', async (req, res) => {
   } catch (err) {
     console.error("Error rating doctor:", err);
     res.status(500).json({ error: "فشل في تسجيل التقييم، حاول مرة أخرى" });
+  }
+});
+
+// 🌟 مسار جلب آراء وتقييمات الطبيب مرتبة من الأحدث للأقدم
+app.get('/api/doctor-reviews/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const reviews = await pool.query(
+      'SELECT * FROM doctor_reviews WHERE doctor_id = $1 ORDER BY created_at DESC, id DESC LIMIT 50',
+      [id]
+    );
+    res.json(reviews.rows);
+  } catch (err) {
+    console.warn("تعذر جلب المراجعات:", err.message);
+    res.json([]);
   }
 });
 
