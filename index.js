@@ -1176,6 +1176,12 @@ app.get('/s/:serviceId', async (req, res) => {
   const userAgent = (req.headers['user-agent'] || '').toLowerCase();
   const isCrawler = /facebookexternalhit|facebot|twitterbot|whatsapp|telegrambot|linkedinbot|slackbot|discordbot/i.test(userAgent);
 
+  // 1. تحديد الرابط المستهدف الحقيقي للزوار (صفحة الاستشارات مستقلة وباقي الخدمات تابعة لـ service/)
+  const isSymptomsPage = serviceId === 'symptoms' || serviceId === 'consultations';
+  const targetDestinationUrl = isSymptomsPage 
+    ? 'https://www.doctoreg.online/symptoms'
+    : `https://www.doctoreg.online/service/${serviceId}`;
+
   const serviceData = servicesMetaMap[serviceId] || {
     title: 'خدمات واستشارات جراحة المخ والأعصاب | دكتور أيمن عجيب',
     desc: 'دليل طبي شامل لتشخيص وعلاج أمراض المخ والأعصاب والعمود الفقري مع دكتور أيمن عجيب.',
@@ -1216,14 +1222,11 @@ app.get('/s/:serviceId', async (req, res) => {
   }
 
   // 2. إذا كان زائراً حقيقياً ضغط على الرابط: يتم تحويله لصفحة المقال على موقعك وتفتح فوراً
-  return res.redirect(301, `https://www.doctoreg.online/service/${serviceId}`);
+   // 4. إذا كان زائراً حقيقياً ضغط على الرابط: يتم تحويله 301 إلى الرابط المستهدف السليم فوراً
+  return res.redirect(301, targetDestinationUrl);
 
-// 2. إذا كان زائراً حقيقياً ضغط على الرابط: يتم تحويله لصفحة المقال أو صفحة الاستشارات
-  if (serviceId === 'symptoms' || serviceId === 'consultations') {
-    return res.redirect(301, 'https://www.doctoreg.online/symptoms');
-  }
-  return res.redirect(301, `https://www.doctoreg.online/service/${serviceId}`);
 
+  
 });
 
 // API لتحديث أو حفظ توكن الإشعارات للمريض عند تسجيل الدخول
