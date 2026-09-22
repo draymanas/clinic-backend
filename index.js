@@ -2015,7 +2015,196 @@ cron.schedule('0 12 * * *', async () => {
     timezone: "Africa/Cairo"
 });
 
+// ==========================================================
+// ☁️ نقل صور الأطباء القديمة من Supabase إلى Cloudinary
+// ==========================================================
 
+app.get('/api/migrate-doctor-images-to-cloudinary', async (req, res) => {
+    console.log("🚀 بدء نقل صور الأطباء من Supabase إلى Cloudinary...");
+
+    try {
+        // 1️⃣ جلب جميع الأطباء الذين لديهم صورة
+        const result = await pool.query(`
+            SELECT id, name, image_url
+            FROM doctors
+            WHERE image_url IS NOT NULL
+              AND TRIM(image_url) != ''
+            ORDER BY id ASC
+        `);
+
+        const doctors = result.rows;
+
+        if (doctors.length === 0) {
+            return res.json({
+                success: true,
+                message: "لا توجد صور أطباء تحتاج إلى نقل."
+            });
+        }
+
+        console.log(`📸 تم العثور على ${doctors.length} طبيب لديهم صور.`);
+
+        let successCount = 0;
+        let skippedCount = 0;
+        let failedCount = 0;
+
+        const results = [];
+
+        // 2️⃣ معالجة كل طبيب بالتتابع
+        for (const doctor of doctors) {
+
+            console.log(
+                `\n🔄 جاري معالجة الطبيب #${doctor.id} - ${doctor.name}`
+            );
+
+            const oldImageUrl = doctor.image_url;
+
+            // --------------------------------------------------
+            // 🟢 إذا كانت الصورة بالفعل على Cloudinary
+            // لا ننقلها مرة أخرى
+            // --------------------------------------------------
+            if (
+                oldImageUrl.includes('res.cloudinary.com') ||
+                oldImageUrl.includes('cloudinary.com')
+            ) {
+                console.log("⏭️ الصورة موجودة بالفعل على Cloudinary");
+
+                skippedCount++;
+
+                results.push({
+                    id: doctor.id,
+                    name: doctor.name,
+                    status: 'skipped',
+                    reason: 'already_on_cloudinary',
+                    image_url: oldImageUrl
+                });
+
+                continue;
+            }
+
+            try {
+
+                // --------------------------------------------------
+                // 3️⃣ تحميل الصورة القديمة من الرابط
+                // --------------------------------------------------
+
+                console.log("⬇️ جاري تحميل الصورة القديمة...");
+
+                const imageResponse = await axios.get(oldImageUrl, {
+                    responseType: 'arraybuffer',
+                    timeout: 30000,
+                    maxContentLength: 20 * 1024 * 1024,
+                    maxBodyLength: 20 * 1024 * 1024
+                });
+
+                const imageBuffer = Buffer.from(imageResponse.data);
+
+                console.log(
+                    `📦 تم تحميل الصورة (${Math.round(imageBuffer.length / 1024)} KB)`
+                );
+
+                // --------------------------------------------------
+                // 4️⃣ رفع الصورة إلى Cloudinary
+                // --------------------------------------------------
+
+                console.log("☁️ جاري رفع الصورة إلى Cloudinary...");
+
+                const cloudinaryUrl = await uploadBufferToCloudinary(
+                    imageBuffer,
+                    'doctors'
+                );
+
+                console.log(
+                    "✅ تم الرفع بنجاح:",
+                    cloudinaryUrl
+                );
+
+                // --------------------------------------------------
+                // 5️⃣ تحديث رابط الصورة في قاعدة البيانات
+                // --------------------------------------------------
+
+                await pool.query(
+                    `
+                    UPDATE doctors
+                    SET image_url = $1
+                    WHERE id = $2
+                    `,
+                    [cloudinaryUrl, doctor.id]
+                );
+
+                console.log(
+                    `💾 تم تحديث صورة الطبيب #${doctor.id} في قاعدة البيانات`
+                );
+
+                successCount++;
+
+                results.push({
+                    id: doctor.id,
+                    name: doctor.name,
+                    status: 'success',
+                    old_url: oldImageUrl,
+                    new_url: cloudinaryUrl
+                });
+
+                // --------------------------------------------------
+                // ⏳ انتظار بسيط بين كل صورة
+                // لتقليل الضغط على الخدمات
+                // --------------------------------------------------
+
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+            } catch (imageError) {
+
+                failedCount++;
+
+                console.error(
+                    `❌ فشل نقل صورة الطبيب #${doctor.id}:`,
+                    imageError.message
+                );
+
+                results.push({
+                    id: doctor.id,
+                    name: doctor.name,
+                    status: 'failed',
+                    old_url: oldImageUrl,
+                    error: imageError.message
+                });
+            }
+        }
+
+        // --------------------------------------------------
+        // 6️⃣ التقرير النهائي
+        // --------------------------------------------------
+
+        console.log("\n==========================================");
+        console.log("🏁 انتهى نقل صور الأطباء");
+        console.log(`✅ نجح: ${successCount}`);
+        console.log(`⏭️ تم تخطيها: ${skippedCount}`);
+        console.log(`❌ فشل: ${failedCount}`);
+        console.log("==========================================");
+
+        res.json({
+            success: true,
+            message: "انتهى نقل صور الأطباء إلى Cloudinary",
+            total: doctors.length,
+            success: successCount,
+            skipped: skippedCount,
+            failed: failedCount,
+            results
+        });
+
+    } catch (error) {
+
+        console.error(
+            "❌ خطأ رئيسي في نقل صور الأطباء:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
 
 app.listen(PORT, () => {
     console.log(`
