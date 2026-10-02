@@ -191,158 +191,378 @@ app.post('/api/send-bulk-notification', async (req, res) => {
 // ===============================
 // Dynamic XML Sitemap (Doctor Profiles + Specialty & City Category Pages)
 // ===============================
+// ======================================================
+// SEO SITEMAPS - منصة دكتور
+// ======================================================
+
+const SITEMAP_BASE_URL = 'https://www.doctoreg.online';
+
+
+// ======================================================
+// تنظيف النص وتحويله إلى Slug
+// ======================================================
 
 const slugifyArabic = (text) => {
-  if (!text) return '';
-  return text
-    .trim()
-    .replace(/[\/\#\?\&\\\:\*\"\'\<\>\|\(\)\,\.]/g, '')
-    .replace(/\s+/g, '-');
+    if (!text) return '';
+
+    return String(text)
+        .trim()
+        .replace(/[\/#?&\\:*"'<>|(),.]/g, '')
+        .replace(/\s+/g, '-');
 };
+
+
+// ======================================================
+// إنشاء رابط صفحة الطبيب
+// ======================================================
 
 const generateDoctorSlug = (doc) => {
-  if (!doc || !doc.id) return '';
-  const titlePart = doc.title ? `${doc.title} ` : '';
-  const rawText = `دكتور ${doc.name || ''} ${titlePart}${doc.specialty || ''}`.trim();
-  const cleanSlug = rawText
-    .replace(/[\/\#\?\&\\\:\*\"\'\<\>\|\(\)\,\.]/g, '')
-    .trim()
-    .replace(/\s+/g, '-');
-  return `${doc.id}-${encodeURIComponent(cleanSlug)}`;
+    if (!doc || !doc.id) return '';
+
+    const titlePart = doc.title ? `${doc.title} ` : '';
+
+    const rawText =
+        `دكتور ${doc.name || ''} ${titlePart}${doc.specialty || ''}`.trim();
+
+    const cleanSlug = slugifyArabic(rawText);
+
+    return `${doc.id}-${encodeURIComponent(cleanSlug)}`;
 };
-app.get('/sitemap.xml', async (req, res) => {
-  try {
-    // 1. جلب بيانات الأطباء النشطين
-    const { data: doctors, error } = await supabase
-      .from('doctors')
-      .select('id, name, title, specialty, city, area')
-      .eq('is_active', true)
-      .order('id', { ascending: true });
+
+
+// ======================================================
+// دالة مساعدة لجلب الأطباء النشطين
+// ======================================================
+
+const getActiveDoctorsForSitemap = async () => {
+
+    const { data, error } = await supabase
+        .from('doctors')
+        .select('id, name, title, specialty, city, area')
+        .eq('is_active', true)
+        .order('id', { ascending: true });
 
     if (error) {
-      console.error('Sitemap doctors error:', error);
-      return res.status(500).send('Error generating sitemap');
+        throw error;
     }
 
-    const baseUrl = 'https://www.doctoreg.online';
+    return data || [];
+};
 
-    // الصفحات الأساسية الثابتة
-    const urls = [
-      `
-      <url>
-        <loc>${baseUrl}/</loc>
-        <changefreq>daily</changefreq>
-        <priority>1.0</priority>
-      </url>
-      `,
-      `
-      <url>
-        <loc>${baseUrl}/search</loc>
-        <changefreq>daily</changefreq>
-        <priority>0.9</priority>
-      </url>
-      `,
-      `
-      <url>
-        <loc>${baseUrl}/join</loc>
-        <changefreq>monthly</changefreq>
-        <priority>0.5</priority>
-      </url>
-      `,
-      `
-      <url>
-        <loc>${baseUrl}/dr/${encodeURIComponent("دكتور-ايمن-عجيب-استشاري-مخ-وأعصاب-وعمود-فقري")}</loc>
-        <changefreq>weekly</changefreq>
-        <priority>0.95</priority>
-      </url>
-      `,
-      `<url>
-  <loc>${baseUrl}/symptoms</loc>
-  <changefreq>daily</changefreq>
-  <priority>0.9</priority>
-</url>`
-    ];
 
-    // 🌟 إضافة صفحات المقالات والخدمات التخصصية لخريطة الموقع
+// ======================================================
+// دالة لإنشاء XML URL
+// ======================================================
+
+const createSitemapUrl = (
+    loc,
+    changefreq = 'weekly',
+    priority = '0.8'
+) => {
+
+    return `
+    <url>
+        <loc>${loc}</loc>
+        <changefreq>${changefreq}</changefreq>
+        <priority>${priority}</priority>
+    </url>`;
+};
+
+
+// ======================================================
+// 1. SITEMAP INDEX
+// https://www.doctoreg.online/sitemap.xml
+// ======================================================
+
+app.get('/sitemap.xml', (req, res) => {
+
+    const sitemapIndex = `<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+
+    <sitemap>
+        <loc>${SITEMAP_BASE_URL}/sitemap-doctors.xml</loc>
+    </sitemap>
+
+    <sitemap>
+        <loc>${SITEMAP_BASE_URL}/sitemap-categories.xml</loc>
+    </sitemap>
+
+    <sitemap>
+        <loc>${SITEMAP_BASE_URL}/sitemap-services.xml</loc>
+    </sitemap>
+
+</sitemapindex>`;
+
+    res.set('Content-Type', 'application/xml; charset=utf-8');
+    res.send(sitemapIndex);
+});
+
+
+// ======================================================
+// 2. DOCTORS SITEMAP
+// صفحات الأطباء فقط
+// ======================================================
+
+app.get('/sitemap-doctors.xml', async (req, res) => {
+
+    try {
+
+        const doctors = await getActiveDoctorsForSitemap();
+
+        const urls = [];
+
+        doctors.forEach((doctor) => {
+
+            const doctorSlug = generateDoctorSlug(doctor);
+
+            if (!doctorSlug) return;
+
+            urls.push(
+                createSitemapUrl(
+                    `${SITEMAP_BASE_URL}/dr/${doctorSlug}`,
+                    'weekly',
+                    '0.8'
+                )
+            );
+
+        });
+
+        const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.join('\n')}
+</urlset>`;
+
+        res.set('Content-Type', 'application/xml; charset=utf-8');
+        res.send(sitemap);
+
+    } catch (error) {
+
+        console.error('Doctors sitemap error:', error);
+
+        res.status(500).send(
+            'Error generating doctors sitemap'
+        );
+    }
+});
+
+
+// ======================================================
+// 3. CATEGORIES SITEMAP
+// تخصص + محافظة + منطقة
+// ======================================================
+
+app.get('/sitemap-categories.xml', async (req, res) => {
+
+    try {
+
+        const doctors = await getActiveDoctorsForSitemap();
+
+        const categoryPages = new Set();
+
+        doctors.forEach((doctor) => {
+
+            if (!doctor.specialty) return;
+
+            const specialtySlug =
+                encodeURIComponent(
+                    slugifyArabic(doctor.specialty)
+                );
+
+            // -------------------------------
+            // صفحة التخصص
+            // /doctors/باطنة
+            // -------------------------------
+
+            categoryPages.add(
+                `/doctors/${specialtySlug}`
+            );
+
+
+            // -------------------------------
+            // صفحة التخصص + المحافظة
+            // -------------------------------
+
+            if (doctor.city) {
+
+                const citySlug =
+                    encodeURIComponent(
+                        slugifyArabic(doctor.city)
+                    );
+
+                categoryPages.add(
+                    `/doctors/${specialtySlug}/${citySlug}`
+                );
+
+
+                // -------------------------------
+                // صفحة التخصص + المحافظة + المنطقة
+                // -------------------------------
+
+                if (doctor.area) {
+
+                    const areaSlug =
+                        encodeURIComponent(
+                            slugifyArabic(doctor.area)
+                        );
+
+                    categoryPages.add(
+                        `/doctors/${specialtySlug}/${citySlug}/${areaSlug}`
+                    );
+                }
+            }
+        });
+
+
+        const urls = [];
+
+        categoryPages.forEach((path) => {
+
+            urls.push(
+                createSitemapUrl(
+                    `${SITEMAP_BASE_URL}${path}`,
+                    'weekly',
+                    '0.9'
+                )
+            );
+
+        });
+
+
+        const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls.join('\n')}
+</urlset>`;
+
+        res.set('Content-Type', 'application/xml; charset=utf-8');
+        res.send(sitemap);
+
+    } catch (error) {
+
+        console.error('Categories sitemap error:', error);
+
+        res.status(500).send(
+            'Error generating categories sitemap'
+        );
+    }
+});
+
+
+// ======================================================
+// 4. SERVICES + MAIN PAGES SITEMAP
+// ======================================================
+
+app.get('/sitemap-services.xml', (req, res) => {
+
+    const urls = [];
+
+
+    // ==================================================
+    // الصفحات الأساسية
+    // ==================================================
+
+    urls.push(
+        createSitemapUrl(
+            `${SITEMAP_BASE_URL}/`,
+            'daily',
+            '1.0'
+        )
+    );
+
+    urls.push(
+        createSitemapUrl(
+            `${SITEMAP_BASE_URL}/search`,
+            'daily',
+            '0.9'
+        )
+    );
+
+    urls.push(
+        createSitemapUrl(
+            `${SITEMAP_BASE_URL}/join`,
+            'monthly',
+            '0.5'
+        )
+    );
+
+    urls.push(
+        createSitemapUrl(
+            `${SITEMAP_BASE_URL}/symptoms`,
+            'weekly',
+            '0.9'
+        )
+    );
+
+
+    // ==================================================
+    // صفحة الدكتور أيمن عجيب الخاصة
+    // ==================================================
+
+    const aymanSlug =
+        encodeURIComponent(
+            'دكتور-ايمن-عجيب-استشاري-مخ-وأعصاب-وعمود-فقري'
+        );
+
+    urls.push(
+        createSitemapUrl(
+            `${SITEMAP_BASE_URL}/dr/${aymanSlug}`,
+            'weekly',
+            '0.95'
+        )
+    );
+
+
+    // ==================================================
+    // صفحات الخدمات والمقالات
+    // ==================================================
+
     const servicesIds = [
-      'spine-surgery', 'nerve-entrapment', 'disc-treatment', 
-      'back-pain', 'migraine', 'peripheral-neuropathy', 
-      'balance-disorders', 'stroke-memory', 'alzheimers', 
-      'movement-disorders', 'optic-pressure', 'multiple-sclerosis', 
-      'epilepsy', 'development-delay', 'adhd-autism', 
-      'memory-brain', 'cerebral-palsy'
+
+        'spine-surgery',
+        'nerve-entrapment',
+        'disc-treatment',
+        'back-pain',
+        'migraine',
+        'peripheral-neuropathy',
+        'balance-disorders',
+        'stroke-memory',
+        'alzheimers',
+        'movement-disorders',
+        'optic-pressure',
+        'multiple-sclerosis',
+        'epilepsy',
+        'development-delay',
+        'adhd-autism',
+        'memory-brain',
+        'cerebral-palsy'
+
     ];
 
-    servicesIds.forEach(srvId => {
-      urls.push(`
-      <url>
-        <loc>${baseUrl}/service/${srvId}</loc>
-        <changefreq>monthly</changefreq>
-        <priority>0.85</priority>
-      </url>
-      `);
+
+    servicesIds.forEach((serviceId) => {
+
+        urls.push(
+            createSitemapUrl(
+                `${SITEMAP_BASE_URL}/service/${serviceId}`,
+                'monthly',
+                '0.85'
+            )
+        );
+
     });
 
-    // 2. جمع صفحات التخصصات والمدن والمناطق الفعلية الفريدة
-    const categoryPages = new Set();
-
-    if (doctors && doctors.length > 0) {
-      doctors.forEach((doc) => {
-        if (doc.specialty) {
-          const specSlug = encodeURIComponent(slugifyArabic(doc.specialty));
-          // صفحة التخصص العام (مثل: /doctors/مخ-وأعصاب)
-          categoryPages.add(`/doctors/${specSlug}`);
-
-          if (doc.city) {
-            const citySlug = encodeURIComponent(slugifyArabic(doc.city));
-            // صفحة التخصص في المحافظة (مثل: /doctors/مخ-وأعصاب/الجيزة)
-            categoryPages.add(`/doctors/${specSlug}/${citySlug}`);
-
-            if (doc.area) {
-              const areaSlug = encodeURIComponent(slugifyArabic(doc.area));
-              // صفحة التخصص في المنطقة (مثل: /doctors/مخ-وأعصاب/الجيزة/6-أكتوبر)
-              categoryPages.add(`/doctors/${specSlug}/${citySlug}/${areaSlug}`);
-            }
-          }
-        }
-      });
-
-      // إضافة صفحات التصنيفات لخريطة الموقع بأولوية عالية (0.9)
-      categoryPages.forEach((path) => {
-        urls.push(`
-        <url>
-          <loc>${baseUrl}${path}</loc>
-          <changefreq>weekly</changefreq>
-          <priority>0.9</priority>
-        </url>
-        `);
-      });
-
-      // 3. إضافة روابط صفحات الأطباء الشخصية
-      doctors.forEach((doctor) => {
-        const docSlug = generateDoctorSlug(doctor);
-        urls.push(`
-        <url>
-          <loc>${baseUrl}/dr/${docSlug}</loc>
-          <changefreq>weekly</changefreq>
-          <priority>0.8</priority>
-        </url>
-        `);
-      });
-    }
 
     const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${urls.join('\n')}
 </urlset>`;
 
-    res.set('Content-Type', 'application/xml; charset=utf-8');
-    res.send(sitemap);
 
-  } catch (error) {
-    console.error('Sitemap generation error:', error);
-    res.status(500).send('Error generating sitemap');
-  }
+    res.set(
+        'Content-Type',
+        'application/xml; charset=utf-8'
+    );
+
+    res.send(sitemap);
 });
 // --- 2. قسم الأطباء (Doctors) ---
 
