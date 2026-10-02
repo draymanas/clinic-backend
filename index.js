@@ -1060,18 +1060,24 @@ app.get('/doctor-direct/:id', async (req, res) => {
 
 // دالة توليد مسار الـ SEO العربي الكامل للطبيب
 function getDoctorSeoPath(doctor, fallbackId) {
-  const docId = doctor.id || fallbackId;
-  const name = doctor.name || '';
-  const title = doctor.title ? `${doctor.title} ` : '';
-  const specialty = doctor.specialty || '';
-  const city = doctor.city ? `-${doctor.city}` : '';
-  const area = doctor.area ? `-${doctor.area}` : '';
-  const rawText = `${name}-${title}${specialty}${city}${area}`.trim();
-  const cleanSlug = rawText
-    .replace(/[\/\#\?\&\\\:\*\"\'\<\>\|\(\)\,\.]/g, '')
-    .trim()
-    .replace(/\s+/g, '-');
-  return cleanSlug ? `/dr/${docId}-${encodeURIComponent(cleanSlug)}` : `/dr/${docId}`;
+    const docId = doctor?.id || fallbackId;
+
+    if (!docId) return '/search';
+
+    const titlePart = doctor?.title ? `${doctor.title} ` : '';
+
+    const rawText =
+        `دكتور ${doctor?.name || ''} ${titlePart}${doctor?.specialty || ''}`.trim();
+
+    const cleanSlug = rawText
+        .replace(/[\/\#\?\&\\\:\*\"\'\<\>\|\(\)\,\.]/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-');
+
+    return cleanSlug
+        ? `/dr/${docId}-${encodeURIComponent(cleanSlug)}`
+        : `/dr/${docId}`;
 }
 
 // دالة حقن وسوم الـ Open Graph لكروت Facebook و WhatsApp الرسمية بدون أرقام
