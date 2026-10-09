@@ -234,19 +234,46 @@ const generateDoctorSlug = (doc) => {
 // دالة مساعدة لجلب الأطباء النشطين
 // ======================================================
 
+// ======================================================
+// دالة جلب جميع الأطباء النشطين للسايت ماب
+// باستخدام Pagination لتجاوز حد Supabase
+// ======================================================
+
 const getActiveDoctorsForSitemap = async () => {
 
-    const { data, error } = await supabase
-        .from('doctors')
-        .select('id, name, title, specialty, city, area')
-        .eq('is_active', true)
-        .order('id', { ascending: true });
+    const allDoctors = [];
+    const pageSize = 500;
+    let from = 0;
 
-    if (error) {
-        throw error;
+    while (true) {
+
+        const { data, error } = await supabase
+            .from('doctors')
+            .select('id, name, title, specialty, city, area')
+            .eq('is_active', true)
+            .order('id', { ascending: true })
+            .range(from, from + pageSize - 1);
+
+        if (error) {
+            throw error;
+        }
+
+        if (!data || data.length === 0) {
+            break;
+        }
+
+        allDoctors.push(...data);
+
+        if (data.length < pageSize) {
+            break;
+        }
+
+        from += pageSize;
     }
 
-    return data || [];
+    console.log(`✅ Sitemap: loaded ${allDoctors.length} active doctors`);
+
+    return allDoctors;
 };
 
 
