@@ -284,12 +284,31 @@ const getActiveDoctorsForSitemap = async () => {
 const createSitemapUrl = (
     loc,
     changefreq = 'weekly',
-    priority = '0.8'
+    priority = '0.8',
+    lastmod = null
 ) => {
+
+    let lastmodXml = '';
+
+    if (lastmod) {
+        const date = new Date(lastmod);
+
+        if (!Number.isNaN(date.getTime())) {
+            lastmodXml =
+                `<lastmod>${date.toISOString()}</lastmod>`;
+        }
+    }
+
+    const safeLoc = String(loc)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 
     return `
     <url>
-        <loc>${loc}</loc>
+        <loc>${safeLoc}</loc>
+        ${lastmodXml}
         <changefreq>${changefreq}</changefreq>
         <priority>${priority}</priority>
     </url>`;
