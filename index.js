@@ -561,27 +561,35 @@ app.get('/sitemap-services.xml', (req, res) => {
     // صفحات الخدمات والمقالات
     // ==================================================
 
-    const servicesIds = [
+const servicesIds = [
 
-        'spine-surgery',
-        'nerve-entrapment',
-        'disc-treatment',
-        'back-pain',
-        'migraine',
-        'peripheral-neuropathy',
-        'balance-disorders',
-        'stroke-memory',
-        'alzheimers',
-        'movement-disorders',
-        'optic-pressure',
-        'multiple-sclerosis',
-        'epilepsy',
-        'development-delay',
-        'adhd-autism',
-        'memory-brain',
-        'cerebral-palsy'
+    'spine-surgery',
+    'nerve-entrapment',
+    'disc-treatment',
+    'back-pain',
+    'migraine',
+    'peripheral-neuropathy',
+    'balance-disorders',
+    'stroke-memory',
+    'alzheimers',
+    'movement-disorders',
+    'multiple-sclerosis',
+    'epilepsy',
+    'development-delay',
+    'adhd-autism',
+    'memory-brain',
+    'cerebral-palsy',
 
-    ];
+    // خدمات موجودة بالفعل في servicesData.js
+    'syncope-intracranial-pressure',
+    'idiopathic-intracranial-hypertension',
+
+    // الخدمات الثلاث الجديدة
+    'spinal-stenosis',
+    'spondylolisthesis',
+    'spinal-deformity'
+
+];
 
 
     servicesIds.forEach((serviceId) => {
