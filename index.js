@@ -2522,6 +2522,48 @@ app.get('/api/medical-articles', async (req, res) => {
     }
 });
 
+// ==========================================================
+// 📰 كل يوم معلومة - جلب مقال منشور واحد
+// ==========================================================
+
+app.get('/api/medical-articles/:slug', async (req, res) => {
+    try {
+        const { slug } = req.params;
+
+        const result = await pool.query(
+            `SELECT
+                id, title, slug, summary, content,
+                specialty, image_url, author_name,
+                reviewer_name, sources, seo_title,
+                seo_description, published_at, updated_at
+             FROM medical_articles
+             WHERE slug = $1 AND status = 'published'
+             LIMIT 1`,
+            [slug]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'المقال غير موجود أو لم يتم نشره بعد'
+            });
+        }
+
+        res.json({
+            success: true,
+            article: result.rows[0]
+        });
+
+    } catch (error) {
+        console.error('❌ خطأ جلب المقال:', error.message);
+
+        res.status(500).json({
+            success: false,
+            error: 'فشل تحميل المقال'
+        });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`
     🚀 ==========================================
