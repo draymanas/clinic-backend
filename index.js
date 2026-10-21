@@ -2739,6 +2739,39 @@ app.get('/api/medical-articles/:slug', async (req, res) => {
 
  });
 
+
+ // ==========================================================
+ // 📰 كل يوم معلومة - جلب جميع المقالات للإدارة
+ // ==========================================================
+
+ app.get('/api/admin/medical-articles', async (req, res) => {
+   try {
+     const result = await pool.query(`
+       SELECT
+         id, title, slug, summary, content, specialty,
+         image_url, author_name, reviewer_name,
+         sources, seo_title, seo_description,
+         status, published_at, created_at, updated_at
+       FROM medical_articles
+       ORDER BY created_at DESC, id DESC
+     `);
+
+     res.json({
+       success: true,
+       articles: result.rows
+     });
+
+   } catch (error) {
+     console.error('❌ خطأ جلب مقالات الإدارة:', error.message);
+
+     res.status(500).json({
+       success: false,
+       error: 'فشل تحميل مقالات الإدارة'
+     });
+   }
+ });
+
+
 app.listen(PORT, () => {
     console.log(`
     🚀 ==========================================
