@@ -2486,6 +2486,42 @@ app.get('/api/migrate-doctor-images-to-cloudinary', async (req, res) => {
     }
 });
 
+// ==========================================================
+// 📰 كل يوم معلومة - جلب المقالات الطبية المنشورة
+// ==========================================================
+
+app.get('/api/medical-articles', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT
+                id,
+                title,
+                slug,
+                summary,
+                specialty,
+                image_url,
+                author_name,
+                published_at
+            FROM medical_articles
+            WHERE status = 'published'
+            ORDER BY published_at DESC NULLS LAST, id DESC
+        `);
+
+        res.json({
+            success: true,
+            articles: result.rows
+        });
+
+    } catch (error) {
+        console.error('❌ خطأ جلب المقالات:', error.message);
+
+        res.status(500).json({
+            success: false,
+            error: 'فشل تحميل المقالات الطبية'
+        });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`
     🚀 ==========================================
