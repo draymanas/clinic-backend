@@ -2621,6 +2621,123 @@ app.get('/api/medical-articles/:slug', async (req, res) => {
    });
  });
 
+ 
+ // ==========================================================
+ // 📰 كل يوم معلومة - حفظ ونشر المقال مع صورته
+ // ==========================================================
+
+ app.post('/api/admin/medical-articles', (req, res) => {
+
+   articleImageUpload(req, res, async (uploadError) => {
+
+     if (uploadError) {
+       return res.status(400).json({
+         success: false,
+         error: uploadError.message
+       });
+     }
+
+     try {
+       const {
+         title, slug, summary, content,
+         specialty, author_name, reviewer_name,
+         sources, seo_title, seo_description,
+         status
+       } = req.body;
+
+       if (!title?.trim() || !slug?.trim() || !content?.trim()) {
+         return res.status(400).json({
+           success: false,
+           error: 'عنوان المقال والرابط والمحتوى مطلوبون'
+         });
+       }
+
+       const cleanSlug = slug.trim().toLowerCase();
+
+       if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(cleanSlug)) {
+         return res.status(400).json({
+           success: false,
+           error: 'رابط المقال غير صحيح'
+         });
+       }
+
+       const articleStatus =
+         status === 'published' ? 'published' : 'draft';
+
+       // التأكد من عدم وجود مقال بنفس الرابط
+       const existing = await pool.query(
+         'SELECT id FROM medical_articles WHERE slug = $1',
+         [cleanSlug]
+       );
+
+       if (existing.rows.length > 0) {
+         return res.status(409).json({
+           success: false,
+           error: 'يوجد مقال بنفس الرابط بالفعل'
+         });
+       }
+
+       // رفع الصورة إلى Cloudinary
+       let imageUrl = null;
+
+       if (req.file) {
+         imageUrl = await uploadBufferToCloudinary(
+           req.file.buffer,
+           'medical-articles'
+         );
+       }
+
+       // حفظ المقال في Supabase
+       const result = await pool.query(
+         `INSERT INTO medical_articles (
+           title, slug, summary, content, specialty,
+           image_url, author_name, reviewer_name,
+           sources, seo_title, seo_description,
+           status, published_at
+         )
+         VALUES (
+           $1, $2, $3, $4, $5,
+           $6, $7, $8, $9, $10, $11,
+           $12, $13
+         )
+         RETURNING id, title, slug, status, image_url`,
+         [
+           title.trim(),
+           cleanSlug,
+           summary || null,
+           content.trim(),
+           specialty || null,
+           imageUrl,
+           author_name || null,
+           reviewer_name || null,
+           sources || null,
+           seo_title || null,
+           seo_description || null,
+           articleStatus,
+           articleStatus === 'published' ? new Date() : null
+         ]
+       );
+
+       return res.status(201).json({
+         success: true,
+         message: articleStatus === 'published'
+           ? 'تم نشر المقال بنجاح'
+           : 'تم حفظ المقال كمسودة',
+         article: result.rows[0]
+       });
+
+     } catch (error) {
+       console.error('❌ خطأ حفظ المقال:', error);
+
+       return res.status(500).json({
+         success: false,
+         error: 'فشل حفظ المقال أو رفع الصورة'
+       });
+     }
+
+   });
+
+ });
 
 app.listen(PORT, () => {
     console.log(`
