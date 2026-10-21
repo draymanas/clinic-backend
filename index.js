@@ -337,6 +337,10 @@ app.get('/sitemap.xml', (req, res) => {
         <loc>${SITEMAP_BASE_URL}/sitemap-services.xml</loc>
     </sitemap>
 
+    <sitemap>
+    <loc>${SITEMAP_BASE_URL}/sitemap-articles.xml</loc>
+</sitemap>
+
 </sitemapindex>`;
 
     res.set('Content-Type', 'application/xml; charset=utf-8');
@@ -618,6 +622,76 @@ ${urls.join('\n')}
 
     res.send(sitemap);
 });
+
+
+ // ======================================================
+ // 5. MEDICAL ARTICLES SITEMAP
+ // كل يوم معلومة - المقالات المنشورة فقط
+ // ======================================================
+
+ app.get('/sitemap-articles.xml', async (req, res) => {
+   try {
+     const result = await pool.query(`
+       SELECT slug, published_at, updated_at
+       FROM medical_articles
+       WHERE status = 'published'
+       ORDER BY published_at DESC NULLS LAST, id DESC
+     `);
+
+     const urls = [];
+
+     // الصفحة الرئيسية لقسم كل يوم معلومة
+     urls.push(`
+       <url>
+         <loc>${SITEMAP_BASE_URL}/medical-articles</loc>
+       </url>
+     `);
+
+     // إضافة المقالات المنشورة
+     result.rows.forEach((article) => {
+       if (!article.slug) return;
+
+       const articleUrl =
+         `${SITEMAP_BASE_URL}/medical-articles/${encodeURIComponent(article.slug)}`;
+
+       const modifiedDate =
+         article.updated_at || article.published_at;
+
+       const parsedDate = modifiedDate
+         ? new Date(modifiedDate)
+         : null;
+
+       const lastmod =
+         parsedDate && !Number.isNaN(parsedDate.getTime())
+           ? `<lastmod>${parsedDate.toISOString()}</lastmod>`
+           : '';
+
+       urls.push(`
+         <url>
+           <loc>${articleUrl}</loc>
+           ${lastmod}
+         </url>
+       `);
+     });
+
+     const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+ <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+ ${urls.join('\n')}
+ </urlset>`;
+
+     res.set('Content-Type', 'application/xml; charset=utf-8');
+     res.send(sitemap);
+
+   } catch (error) {
+     console.error('❌ Articles sitemap error:', error);
+
+     res.status(500).send(
+       'Error generating articles sitemap'
+     );
+   }
+ });
+
+
 // --- 2. قسم الأطباء (Doctors) ---
 
 app.get('/doctors', async (req, res) => {
