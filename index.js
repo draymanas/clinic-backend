@@ -2772,6 +2772,178 @@ app.get('/api/medical-articles/:slug', async (req, res) => {
  });
 
 
+// ==========================================================
+// 📰 كل يوم معلومة - تعديل مقال موجود
+// ==========================================================
+
+app.put('/api/admin/medical-articles/:id', (req, res) => {
+  articleImageUpload(req, res, async (uploadError) => {
+    if (uploadError) {
+      return res.status(400).json({
+        success: false,
+        error: uploadError.message
+      });
+    }
+
+    try {
+      const articleId = Number(req.params.id);
+
+      if (!Number.isSafeInteger(articleId) || articleId <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'رقم المقال غير صحيح'
+        });
+      }
+
+      const {
+        title, slug, summary, content, specialty,
+        author_name, reviewer_name, sources,
+        seo_title, seo_description, status
+      } = req.body || {};
+
+      if (!title?.trim() || !slug?.trim() || !content?.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: 'عنوان المقال والرابط والمحتوى مطلوبون'
+        });
+      }
+
+      const cleanSlug = slug.trim().toLowerCase();
+
+      if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(cleanSlug)) {
+        return res.status(400).json({
+          success: false,
+          error: 'رابط المقال غير صحيح'
+        });
+      }
+
+      const current = await pool.query(
+        'SELECT id, image_url, published_at FROM medical_articles WHERE id = $1',
+        [articleId]
+      );
+
+      if (current.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'المقال غير موجود'
+        });
+      }
+
+      const articleStatus = status === 'published' ? 'published' : 'draft';
+
+      let imageUrl = current.rows[0].image_url;
+
+      if (req.file) {
+        imageUrl = await uploadBufferToCloudinary(
+          req.file.buffer,
+          'medical-articles'
+        );
+      }
+
+      const result = await pool.query(
+        `UPDATE medical_articles SET
+           title = $1,
+           slug = $2,
+           summary = $3,
+           content = $4,
+           specialty = $5,
+           image_url = $6,
+           author_name = $7,
+           reviewer_name = $8,
+           sources = $9,
+           seo_title = $10,
+           seo_description = $11,
+           status = $12,
+           published_at = CASE
+             WHEN $12 = 'published'
+             THEN COALESCE(published_at, NOW())
+             ELSE published_at
+           END,
+           updated_at = NOW()
+         WHERE id = $13
+         RETURNING id, title, slug, status, image_url`,
+        [
+          title.trim(),
+          cleanSlug,
+          summary || null,
+          content.trim(),
+          specialty || null,
+          imageUrl,
+          author_name || null,
+          reviewer_name || null,
+          sources || null,
+          seo_title || null,
+          seo_description || null,
+          articleStatus,
+          articleId
+        ]
+      );
+
+      res.json({
+        success: true,
+        article: result.rows[0]
+      });
+
+    } catch (error) {
+      console.error('❌ خطأ تعديل المقال:', error.message);
+
+      res.status(error.code === '23505' ? 409 : 500).json({
+        success: false,
+        error: error.code === '23505'
+          ? 'رابط المقال مستخدم بالفعل'
+          : 'فشل تعديل المقال'
+      });
+    }
+  });
+});
+
+
+// ==========================================================
+// 🗑️ كل يوم معلومة - حذف مقال
+// ==========================================================
+
+app.delete('/api/admin/medical-articles/:id', async (req, res) => {
+  try {
+    const articleId = Number(req.params.id);
+
+    if (!Number.isSafeInteger(articleId) || articleId <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'رقم المقال غير صحيح'
+      });
+    }
+
+    const result = await pool.query(
+      `DELETE FROM medical_articles
+       WHERE id = $1
+       RETURNING id, title, slug`,
+      [articleId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'المقال غير موجود'
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: 'تم حذف المقال بنجاح',
+      article: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('❌ خطأ حذف المقال:', error.message);
+
+    return res.status(500).json({
+      success: false,
+      error: 'فشل حذف المقال'
+    });
+  }
+});
+
+
 app.listen(PORT, () => {
     console.log(`
     🚀 ==========================================
