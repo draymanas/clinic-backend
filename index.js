@@ -2565,6 +2565,62 @@ app.get('/api/medical-articles/:slug', async (req, res) => {
 });
 
 
+ // ==========================================================
+ // 🖼️ كل يوم معلومة - رفع صورة المقال إلى Cloudinary
+ // ==========================================================
+
+ const articleImageUpload = multer({
+   storage: multer.memoryStorage(),
+   limits: { fileSize: 5 * 1024 * 1024 },
+   fileFilter: (req, file, cb) => {
+     const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+
+     if (!allowed.includes(file.mimetype)) {
+       return cb(new Error('نوع الصورة غير مسموح'));
+     }
+
+     cb(null, true);
+   }
+ }).single('image');
+
+ app.post('/api/admin/medical-articles/upload-image', (req, res) => {
+   articleImageUpload(req, res, async (uploadError) => {
+     if (uploadError) {
+       return res.status(400).json({
+         success: false,
+         error: uploadError.message
+       });
+     }
+
+     if (!req.file) {
+       return res.status(400).json({
+         success: false,
+         error: 'لم يتم اختيار صورة'
+       });
+     }
+
+     try {
+       const imageUrl = await uploadBufferToCloudinary(
+         req.file.buffer,
+         'medical-articles'
+       );
+
+       return res.json({
+         success: true,
+         image_url: imageUrl
+       });
+
+     } catch (error) {
+       console.error('❌ خطأ رفع صورة المقال:', error.message);
+
+       return res.status(500).json({
+         success: false,
+         error: 'فشل رفع الصورة إلى Cloudinary'
+       });
+     }
+   });
+ });
+
 
 app.listen(PORT, () => {
     console.log(`
