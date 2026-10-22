@@ -1583,6 +1583,123 @@ app.get('/s/:serviceId', async (req, res) => {
   
 });
 
+ // ==========================================================
+ // 📰 مشاركة المقالات الطبية - /a/:slug
+ // ==========================================================
+
+app.get('/a/:slug', async (req, res) => {
+  const slug = req.params.slug;
+
+  const articleUrl =
+    `https://www.doctoreg.online/medical-articles/${encodeURIComponent(slug)}`;
+
+  const shareUrl =
+    `https://www.doctoreg.online/a/${encodeURIComponent(slug)}`;
+
+  try {
+    const result = await pool.query(
+      `SELECT title, summary, seo_title,
+              seo_description, image_url
+       FROM medical_articles
+       WHERE slug = $1 AND status = 'published'
+       LIMIT 1`,
+      [slug]
+    );
+
+    if (result.rows.length === 0) {
+      return res.redirect(302, articleUrl);
+    }
+
+    const article = result.rows[0];
+
+    const title = article.seo_title || article.title;
+
+    const description =
+      article.seo_description ||
+      article.summary ||
+      'اقرأ المقال الطبي على منصة دكتور';
+
+    const image =
+      article.image_url ||
+      'https://www.doctoreg.online/logo512.png';
+
+    // حماية قيم HTML من الأحرف الخاصة
+    const escapeHtml = (value) =>
+      String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const safeTitle = escapeHtml(title);
+    const safeDescription = escapeHtml(description);
+    const safeImage = escapeHtml(image);
+    const safeShareUrl = escapeHtml(shareUrl);
+    const safeArticleUrl = escapeHtml(articleUrl);
+
+    // بطاقة مشاركة المقال
+    const html = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>${safeTitle}</title>
+  <meta name="description" content="${safeDescription}">
+
+  <meta property="og:type" content="article">
+  <meta property="og:site_name" content="منصة دكتور">
+  <meta property="og:locale" content="ar_EG">
+  <meta property="og:title" content="${safeTitle}">
+  <meta property="og:description" content="${safeDescription}">
+  <meta property="og:image" content="${safeImage}">
+  <meta property="og:image:secure_url" content="${safeImage}">
+  <meta property="og:url" content="${safeShareUrl}">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${safeTitle}">
+  <meta name="twitter:description" content="${safeDescription}">
+  <meta name="twitter:image" content="${safeImage}">
+
+  <link rel="canonical" href="${safeArticleUrl}">
+  <meta name="robots" content="noindex,follow">
+</head>
+
+<body>
+  <h1>${safeTitle}</h1>
+  <p>${safeDescription}</p>
+  <p>
+    <a href="${safeArticleUrl}">
+      اقرأ المقال كاملًا على منصة دكتور
+    </a>
+  </p>
+</body>
+</html>`;
+
+    const userAgent =
+      (req.headers['user-agent'] || '').toLowerCase();
+
+    const isCrawler =
+      /facebookexternalhit|facebot|twitterbot|whatsapp|telegrambot|linkedinbot|slackbot|discordbot/i
+        .test(userAgent);
+
+    // شبكات التواصل تحصل على صورة وعنوان المقال
+    if (isCrawler) {
+      res.set('Content-Type', 'text/html; charset=utf-8');
+      return res.status(200).send(html);
+    }
+
+    // الزائر العادي ينتقل إلى المقال الأصلي
+    return res.redirect(302, articleUrl);
+
+  } catch (error) {
+    console.error('خطأ مشاركة المقال:', error.message);
+
+    return res.redirect(302, articleUrl);
+  }
+});
+
 // API لتحديث أو حفظ توكن الإشعارات للمريض عند تسجيل الدخول
 app.post('/api/update-patient-token', async (req, res) => {
   const { mobile, fcm_token } = req.body;
