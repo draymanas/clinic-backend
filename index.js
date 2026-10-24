@@ -45,7 +45,90 @@ const uploadBufferToCloudinary = (fileBuffer, folder = 'doctors') => {
     uploadStream.end(fileBuffer);
   });
 };
+// ==========================================================
+// 🔒 رفع صور الاستشارات الطبية إلى Cloudinary بشكل خاص
+// ==========================================================
 
+const uploadConsultationImage = (fileBuffer) => {
+  return new Promise((resolve, reject) => {
+
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'consultations',
+        resource_type: 'image',
+        type: 'authenticated',
+        overwrite: false
+      },
+      (error, result) => {
+
+        if (error) {
+          return reject(error);
+        }
+
+        // حفظ مرجع الصورة فقط، وليس رابطًا عامًا
+        resolve(result.public_id);
+      }
+    );
+
+    uploadStream.end(fileBuffer);
+  });
+};
+
+// صور الاستشارات: 3 صور، حتى 5MB للصورة
+const consultationUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+    files: 3,
+    fields: 3,
+    fieldSize: 10000
+  },
+  fileFilter: (req, file, cb) => {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
+      return cb(new Error('نوع الصورة غير مدعوم'));
+    }
+    cb(null, true);
+  }
+}).array('images', 3);
+
+// التأكد من أن الملف صورة حقيقية وليس مجرد امتداد صورة
+function validConsultationImage(buffer) {
+  if (!buffer || buffer.length < 12) return false;
+
+  const jpeg = buffer[0] === 0xff &&
+               buffer[1] === 0xd8 &&
+               buffer[2] === 0xff;
+
+  const png = buffer.subarray(0, 8).equals(
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+  );
+
+  const webp =
+    buffer.toString('ascii', 0, 4) === 'RIFF' &&
+    buffer.toString('ascii', 8, 12) === 'WEBP';
+
+  return jpeg || png || webp;
+}
+
+function uploadPrivateConsultationImage(buffer) {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'consultations',
+        resource_type: 'image',
+        type: 'authenticated',
+        overwrite: false,
+        use_filename: false
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result.public_id);
+      }
+    );
+
+    stream.end(buffer);
+  });
+}
 // التهيئة الصحيحة للمكتبة الحديثة
 initializeApp({
   credential: cert(serviceAccount)
@@ -2220,68 +2303,126 @@ cron.schedule('0 * * * *', async () => {
 // =========================================================================
 
 // 1️⃣ استقبال استفسار جديد (متوافق مع صفحتك الشخصية القديمة ومع صفحة الأعراض الجديدة)
-app.post('/api/consultations', async (req, res) => {
-    const { name, phone, question } = req.body;
+app.post('/api/consultations', (req, res) => {
 
-    if (!question || !question.trim()) {
-        return res.status(400).json({
-            success: false,
-            error: "من فضلك اكتب الأعراض أو الاستفسار أولاً."
-        });
+  consultationUpload(req, res, async (uploadError) => {
+
+    if (uploadError) {
+      return res.status(400).json({
+        success: false,
+        error: uploadError.message
+      });
     }
+
+    const { name, phone, question } = req.body || {};
+    const files = req.files || [];
+
+    if (typeof question !== 'string' || !question.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'من فضلك اكتب الأعراض أو الاستفسار أولاً.'
+      });
+    }
+
+    if (question.length > 10000) {
+      return res.status(400).json({
+        success: false,
+        error: 'نص الاستفسار طويل جدًا'
+      });
+    }
+
+    if (files.some(f => !validConsultationImage(f.buffer))) {
+      return res.status(400).json({
+        success: false,
+        error: 'إحدى الصور غير صالحة'
+      });
+    }
+
+    const uploadedIds = [];
 
     try {
-        // نجهز البيانات بمرونة لتقبل الحقول سواء وُجدت الأعمدة الإضافية في سوبابيز أم لا
-        const newRecord = {
-            name: name?.trim() || 'مستخدم منصة دكتور',
-            phone: phone?.trim() || '',
-            question: question.trim(),
-            answer: '',
-            status: 'pending'
-        };
+      for (const file of files) {
+        const imageId = await uploadPrivateConsultationImage(
+          file.buffer
+        );
+        uploadedIds.push(imageId);
+      }
 
-        // محاولة الحفظ في Supabase
-        let { data, error } = await supabase
-            .from('consultations')
-            .insert([newRecord])
-            .select();
+      const newRecord = {
+        name: typeof name === 'string'
+          ? name.trim().slice(0, 200) || 'مستخدم منصة دكتور'
+          : 'مستخدم منصة دكتور',
 
-        if (error) {
-            console.error("❌ خطأ Supabase أثناء حفظ الاستشارة:", error.message);
-            throw error;
+        phone: typeof phone === 'string'
+          ? phone.trim().slice(0, 30)
+          : '',
+
+        question: question.trim(),
+        answer: '',
+        status: 'pending',
+        image_urls: uploadedIds
+      };
+
+      const { data, error } = await supabase
+        .from('consultations')
+        .insert([newRecord])
+        .select('id, name, phone, question')
+        .single();
+
+      if (error) throw error;
+
+      // تنبيه Telegram باستخدام متغيرات البيئة
+      try {
+        if (process.env.TELEGRAM_BOT_TOKEN &&
+            process.env.TELEGRAM_CHAT_ID) {
+
+          await axios.post(
+            `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+            {
+              chat_id: process.env.TELEGRAM_CHAT_ID,
+              text:
+                `🩺 استشارة طبية جديدة\n\n` +
+                `الاسم: ${data.name}\n` +
+                `الموبايل: ${data.phone}\n` +
+                `الاستفسار: ${data.question}\n` +
+                `صور الأشعة: ${uploadedIds.length}\n\n` +
+                `يرجى فتح لوحة الإدارة للرد.`
+            }
+          );
         }
+      } catch (telegramError) {
+        console.warn(
+          'فشل تنبيه Telegram:',
+          telegramError.message
+        );
+      }
 
-        const savedItem = data[0] || {};
+      return res.status(201).json({
+        success: true,
+        message: 'تم استلام استفسارك بنجاح',
+        consultation_id: data.id,
+        images_count: uploadedIds.length
+      });
 
-        // 🔔 إرسال تنبيه Telegram فوراً
-        try {
-            const token = '8639669118:AAGOpN9rtWDl_J3kmhoBK3PddqI14jPqEgw';
-            const chatId = 6635887452;
+    } catch (error) {
+      console.error('فشل حفظ الاستشارة:', error.message);
 
-            const message = `🩺 **استشارة طبية جديدة!**\n\n👤 **الاسم:** ${savedItem.name || 'غير مسجل'}\n📞 **الموبايل:** ${savedItem.phone || 'غير متاح'}\n❓ **الاستفسار:**\n${savedItem.question}\n\nيرجى فتح لوحة الإدارة للرد.`;
+      // تنظيف الصور لو فشل الحفظ
+      await Promise.allSettled(
+        uploadedIds.map(id =>
+          cloudinary.uploader.destroy(id, {
+            resource_type: 'image',
+            type: 'authenticated'
+          })
+        )
+      );
 
-            await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
-                chat_id: chatId,
-                text: message
-            });
-            console.log("✅ تم إرسال تنبيه تليجرام للاستشارة بنجاح");
-        } catch (tgErr) {
-            console.warn("⚠️ تم حفظ الاستشارة لكن فشل تنبيه تليجرام:", tgErr.message);
-        }
-
-        res.status(201).json({
-            success: true,
-            message: "تم استلام استفسارك بنجاح وسيتم مراجعته من الفريق الطبي.",
-            consultation_id: savedItem.id
-        });
-
-    } catch (err) {
-        console.error("❌ خطأ في استقبال الاستشارة:", err);
-        res.status(500).json({
-            success: false,
-            error: "حدث خطأ أثناء إرسال الاستفسار، تأكد من اتصال قاعدة البيانات."
-        });
+      return res.status(500).json({
+        success: false,
+        error: 'تعذر إرسال الاستشارة، حاول مرة أخرى'
+      });
     }
+  });
 });
 
 // 2️⃣ جلب الاستشارات المنشورة للعامة لصفحة SymptomsPage و QandA
@@ -2815,6 +2956,30 @@ const result = await pool.query(
    });
  });
 
+ const consultationImagesUpload = multer({
+    storage: multer.memoryStorage(),
+
+    limits: {
+        fileSize: 5 * 1024 * 1024,
+        files: 3
+    },
+
+    fileFilter: (req, file, cb) => {
+        const allowed = [
+            'image/jpeg',
+            'image/png',
+            'image/webp'
+        ];
+
+        if (!allowed.includes(file.mimetype)) {
+            return cb(new Error(
+                'يسمح فقط بصور JPG أو PNG أو WebP'
+            ));
+        }
+
+        cb(null, true);
+    }
+}).array('images', 3);
  
  // ==========================================================
  // 📰 كل يوم معلومة - حفظ ونشر المقال مع صورته
