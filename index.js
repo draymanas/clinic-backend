@@ -2426,21 +2426,40 @@ app.post('/api/consultations', (req, res) => {
 });
 
 // 2️⃣ جلب الاستشارات المنشورة للعامة لصفحة SymptomsPage و QandA
-app.get('/api/consultations/answered', async (req, res) => {
-    try {
-        // يجلب الاستشارات التي تم الرد عليها
-        const { data, error } = await supabase
-            .from('consultations')
-            .select('*')
-            .eq('status', 'answered')
-            .order('created_at', { ascending: false });
+// ==================================================
+// 🩺 الاستشارات المنشورة للعامة - بدون بيانات خاصة
+// ==================================================
 
-        if (error) throw error;
-        res.json(data || []);
-    } catch (err) {
-        console.error("❌ خطأ جلب الاستشارات المنشورة:", err.message);
-        res.status(500).json({ error: "فشل جلب الاستشارات المنشورة" });
-    }
+app.get('/api/consultations/answered', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('consultations')
+      .select(`
+        id,
+        question,
+        answer,
+        specialty,
+        doctor_id,
+        created_at
+      `)
+      .eq('status', 'answered')
+      .eq('is_published', true)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json(data || []);
+
+  } catch (error) {
+    console.error(
+      '❌ خطأ تحميل الاستشارات المنشورة:',
+      error.message
+    );
+
+    res.status(500).json({
+      error: 'فشل تحميل الاستشارات'
+    });
+  }
 });
 
 // 3️⃣ 🌟 [المسار المفقود الذي تسبب في المشكلة]: جلب كاااافة الاستشارات لصفحة الأدمن
