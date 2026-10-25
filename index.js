@@ -2448,7 +2448,20 @@ app.get('/api/consultations/answered', async (req, res) => {
 
     if (error) throw error;
 
-    res.json(data || []);
+   const consultationsWithImages = (data || []).map(item => ({
+  ...item,
+
+  image_display_urls: (item.image_urls || []).map(publicId =>
+    cloudinary.url(publicId, {
+      secure: true,
+      resource_type: 'image',
+      type: 'authenticated',
+      sign_url: true
+    })
+  )
+}));
+
+res.json(consultationsWithImages);
 
   } catch (error) {
     console.error(
