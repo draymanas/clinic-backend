@@ -56,7 +56,7 @@ const uploadConsultationImage = (fileBuffer) => {
       {
         folder: 'consultations',
         resource_type: 'image',
-        type: 'authenticated',
+        type: 'upload',
         overwrite: false
       },
       (error, result) => {
@@ -110,18 +110,22 @@ function validConsultationImage(buffer) {
   return jpeg || png || webp;
 }
 
+// رفع صور الاستشارات بشكل عادي إلى Cloudinary
 function uploadPrivateConsultationImage(buffer) {
   return new Promise((resolve, reject) => {
+
     const stream = cloudinary.uploader.upload_stream(
       {
         folder: 'consultations',
         resource_type: 'image',
-        type: 'authenticated',
-        overwrite: false,
-        use_filename: false
+        type: 'upload',
+        overwrite: false
       },
       (error, result) => {
+
         if (error) return reject(error);
+
+        // نحتفظ بمعرف الصورة لتسهيل حذفها لاحقًا
         resolve(result.public_id);
       }
     );
@@ -2412,7 +2416,7 @@ app.post('/api/consultations', (req, res) => {
         uploadedIds.map(id =>
           cloudinary.uploader.destroy(id, {
             resource_type: 'image',
-            type: 'authenticated'
+            type: 'upload'
           })
         )
       );
@@ -2455,8 +2459,7 @@ app.get('/api/consultations/answered', async (req, res) => {
     cloudinary.url(publicId, {
       secure: true,
       resource_type: 'image',
-      type: 'authenticated',
-      sign_url: true
+     type: 'upload'
     })
   )
 }));
