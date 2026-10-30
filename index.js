@@ -2212,32 +2212,163 @@ app.get('/api/doctor-reviews/:id', async (req, res) => {
   }
 });
 
- 
+// ======================================================
+// 📅 تنبيه Telegram عند حجز مريض جديد
+// مع بيانات الطبيب والعيادة والمنطقة والتخصص
+// ======================================================
 
 const sendBookingAlert = async (bookingData) => {
-    const token = '8639669118:AAGOpN9rtWDl_J3kmhoBK3PddqI14jPqEgw';
-    const chatId = 6635887452; 
 
-    const message = `
-📅 **تنبيه: حجز مريض جديد!** 📅
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
 
-👤 **اسم المريض:** ${bookingData.patient_name || 'غير معروف'}
-📞 **موبايل المريض:** ${bookingData.mobile || 'غير متاح'}
-👨‍⚕️ **عند الدكتور:** ${bookingData.doctor_name || 'غير محدد'}
-⏰ **الموعد:** ${bookingData.booking_date || 'غير محدد'}
+    if (!token || !chatId) {
+        console.warn('⚠️ إعدادات Telegram غير مكتملة');
+        return;
+    }
+
+    try {
+
+        // ==========================================
+        // 1. تحديد كود الطبيب
+        // ==========================================
+
+        const doctorId = bookingData.doctor_id;
+
+        let doctorInfo = null;
+
+        // ==========================================
+        // 2. جلب بيانات الطبيب من Supabase
+        // ==========================================
+
+        if (doctorId) {
+
+            const { data, error } = await supabase
+                .from('doctors')
+                .select(`
+                    id,
+                    name,
+                    specialty,
+                    mobile,
+                    area,
+                    city,
+                    address
+                `)
+                .eq('id', doctorId)
+                .maybeSingle();
+
+            if (error) {
+                console.warn(
+                    '⚠️ تعذر جلب بيانات الطبيب:',
+                    error.message
+                );
+            } else {
+                doctorInfo = data;
+            }
+        }
+
+        // ==========================================
+        // 3. تجهيز بيانات الرسالة
+        // ==========================================
+
+        const patientName =
+            bookingData.patient_name || 'غير معروف';
+
+        const patientMobile =
+            bookingData.mobile ||
+            bookingData.patient_mobile ||
+            'غير متاح';
+
+        const doctorName =
+            doctorInfo?.name ||
+            bookingData.doctor_name ||
+            'غير محدد';
+
+        const specialty =
+            doctorInfo?.specialty || 'غير محدد';
+
+        const clinicMobile =
+            doctorInfo?.mobile || 'غير مسجل';
+
+        const area =
+            doctorInfo?.area || 'غير محددة';
+
+        const city =
+            doctorInfo?.city || 'غير محددة';
+
+        const bookingDate =
+            bookingData.booking_date ||
+            bookingData.appointment_date ||
+            'غير محدد';
+
+        const bookingTime =
+            bookingData.booking_time ||
+            bookingData.appointment_time ||
+            bookingData.time ||
+            '';
+
+        // ==========================================
+        // 4. تجهيز رسالة Telegram
+        // ==========================================
+
+        const message = `
+📅 تنبيه: حجز مريض جديد! 📅
+
+👤 اسم المريض: ${patientName}
+📞 موبايل المريض: ${patientMobile}
+
+👨‍⚕️ اسم الطبيب: ${doctorName}
+🆔 كود الطبيب: ${doctorInfo?.id || doctorId || 'غير محدد'}
+🩺 التخصص: ${specialty}
+
+🏥 هاتف العيادة: ${clinicMobile}
+📍 المنطقة: ${area}
+🏙️ المحافظة: ${city}
+
+📆 تاريخ الحجز: ${bookingDate}
+${bookingTime ? `⏰ الساعة: ${bookingTime}` : ''}
 
 يرجى مراجعة المواعيد في لوحة التحكم.
-    `;
+        `.trim();
 
-    const url = `https://api.telegram.org/bot${token}/sendMessage`;
-    try {
-        await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'Markdown' })
-        });
+        // ==========================================
+        // 5. إرسال التنبيه
+        // ==========================================
+
+        const response = await fetch(
+            `https://api.telegram.org/bot${token}/sendMessage`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    chat_id: chatId,
+                    text: message
+                })
+            }
+        );
+
+        const result = await response.json();
+
+        if (!response.ok || !result.ok) {
+            throw new Error(
+                result.description ||
+                'فشل إرسال رسالة Telegram'
+            );
+        }
+
+        console.log(
+            `✅ تم إرسال تنبيه الحجز للطبيب #${doctorId || 'غير محدد'}`
+        );
+
     } catch (err) {
-        console.error("❌ فشل إرسال إشعار التليجرام للحجز:", err);
+
+        console.error(
+            '❌ فشل إرسال تنبيه Telegram:',
+            err.message
+        );
+
     }
 };
 
