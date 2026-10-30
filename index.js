@@ -2098,12 +2098,15 @@ if (adminToken) {
 }
 
         // 4. استدعاء الدالة القديمة (إذا كنت لا تزال تحتاجها)
-        await sendBookingAlert({
-            patient_name: patient_name,
-            mobile: mobile,
-            doctor_name: doctor_name,
-            booking_date: appointment_date
-        });
+       await sendBookingAlert({
+    patient_name: patient_name,
+    mobile: mobile,
+    doctor_name: doctor_name,
+    booking_date: appointment_date,
+
+    // كود الطبيب المرتبط بالحجز المحفوظ
+    doctor_id: result.rows[0].doctor_id
+});
 
         res.json(result.rows[0]);
     } catch (err) {
