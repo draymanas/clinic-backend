@@ -3736,6 +3736,249 @@ app.post('/api/accounting/invoices/issue', async (req, res) => {
   }
 });
 
+// ==========================================================
+// 3) تسجيل دفعة مالية وربطها بفاتورة واحدة
+// ==========================================================
+app.post('/api/accounting/payments', async (req, res) => {
+  const {
+    invoice_id,
+    amount,
+    payment_date,
+    reference_number,
+    notes,
+    recorded_by
+  } = req.body;
+
+  const invoiceId = Number(invoice_id);
+  const paymentAmount = Number(amount);
+
+  // التحقق من رقم الفاتورة
+  if (!Number.isInteger(invoiceId) || invoiceId <= 0) {
+    return res.status(400).json({
+      success: false,
+      error: 'رقم الفاتورة غير صحيح'
+    });
+  }
+
+  // التحقق من مبلغ التحويل
+  if (
+    !Number.isFinite(paymentAmount) ||
+    paymentAmount <= 0 ||
+    Math.abs(paymentAmount * 100 - Math.round(paymentAmount * 100)) > 0.000001
+  ) {
+    return res.status(400).json({
+      success: false,
+      error: 'مبلغ التحويل يجب أن يكون أكبر من صفر وبحد أقصى منزلتين عشريتين'
+    });
+  }
+
+  // التحقق من التاريخ إذا تم إرساله
+  if (payment_date && !/^\d{4}-\d{2}-\d{2}$/.test(payment_date)) {
+    return res.status(400).json({
+      success: false,
+      error: 'تاريخ التحويل غير صحيح'
+    });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // جلب الفاتورة وقفل سجلها أثناء تنفيذ عملية السداد
+    const invoiceResult = await client.query(`
+      SELECT id, doctor_id, invoice_total, status
+      FROM doctor_invoices
+      WHERE id = $1
+      FOR UPDATE
+    `, [invoiceId]);
+
+    if (invoiceResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+
+      return res.status(404).json({
+        success: false,
+        error: 'الفاتورة غير موجودة'
+      });
+    }
+
+    const invoice = invoiceResult.rows[0];
+    const invoiceTotal = Number(invoice.invoice_total);
+
+    if (invoice.status === 'void') {
+      await client.query('ROLLBACK');
+
+      return res.status(400).json({
+        success: false,
+        error: 'لا يمكن تسجيل دفعة على فاتورة ملغاة'
+      });
+    }
+
+    // التأكد من أن الفاتورة لم يتم سدادها من قبل
+    const previousPayments = await client.query(`
+      SELECT COALESCE(SUM(pa.allocated_amount), 0) AS paid_amount
+      FROM payment_allocations pa
+      INNER JOIN doctor_payments dp
+        ON dp.id = pa.payment_id
+      WHERE pa.invoice_id = $1
+        AND dp.status = 'confirmed'
+    `, [invoiceId]);
+
+    const paidAmount = Number(previousPayments.rows[0].paid_amount);
+
+    if (paidAmount >= invoiceTotal) {
+      await client.query('ROLLBACK');
+
+      return res.status(409).json({
+        success: false,
+        error: 'هذه الفاتورة مدفوعة بالفعل'
+      });
+    }
+
+    // منع الدفعات الأقل من قيمة الفاتورة
+    if (paymentAmount < invoiceTotal) {
+      await client.query('ROLLBACK');
+
+      return res.status(400).json({
+        success: false,
+        error: 'مبلغ التحويل يجب أن يساوي قيمة الفاتورة أو يزيد عليها'
+      });
+    }
+
+    // لا نقبل وجود تخصيص سابق جزئي للفاتورة
+    if (paidAmount > 0) {
+      await client.query('ROLLBACK');
+
+      return res.status(409).json({
+        success: false,
+        error: 'توجد حركة سداد سابقة على هذه الفاتورة، يرجى مراجعتها أولاً'
+      });
+    }
+
+    // تسجيل مبلغ التحويل الفعلي
+    const paymentResult = await client.query(`
+      INSERT INTO doctor_payments (
+        doctor_id,
+        amount,
+        payment_date,
+        reference_number,
+        notes,
+        status,
+        recorded_by
+      )
+      VALUES (
+        $1,
+        $2,
+        COALESCE($3::DATE, CURRENT_DATE),
+        $4,
+        $5,
+        'confirmed',
+        $6
+      )
+      RETURNING *
+    `, [
+      invoice.doctor_id,
+      paymentAmount.toFixed(2),
+      payment_date || null,
+      reference_number || null,
+      notes || null,
+      recorded_by || null
+    ]);
+
+    const payment = paymentResult.rows[0];
+
+    // ربط الفاتورة بمبلغها فقط، حتى لو كان التحويل أكبر
+    await client.query(`
+      INSERT INTO payment_allocations (
+        payment_id,
+        invoice_id,
+        allocated_amount
+      )
+      VALUES ($1, $2, $3)
+    `, [
+      payment.id,
+      invoiceId,
+      invoiceTotal.toFixed(2)
+    ]);
+
+    // تحديث حالة الفاتورة إلى مدفوعة بالكامل
+    await client.query(`
+      UPDATE doctor_invoices
+      SET status = 'paid',
+          updated_at = NOW()
+      WHERE id = $1
+    `, [invoiceId]);
+
+    // تسجيل العملية في سجل المراجعة
+    await client.query(`
+      INSERT INTO accounting_audit_log (
+        doctor_id,
+        invoice_id,
+        payment_id,
+        action,
+        old_value,
+        new_value,
+        reason,
+        performed_by,
+        performed_at
+      )
+      VALUES (
+        $1,
+        $2,
+        $3,
+        'payment_recorded',
+        $4::JSONB,
+        $5::JSONB,
+        $6,
+        $7,
+        NOW()
+      )
+    `, [
+      invoice.doctor_id,
+      invoiceId,
+      payment.id,
+      JSON.stringify({
+        invoice_status: invoice.status,
+        paid_amount: 0
+      }),
+      JSON.stringify({
+        invoice_status: 'paid',
+        payment_amount: paymentAmount,
+        allocated_amount: invoiceTotal
+      }),
+      'تسجيل دفعة كاملة للفاتورة',
+      recorded_by || null
+    ]);
+
+    await client.query('COMMIT');
+
+    return res.status(201).json({
+      success: true,
+      message: 'تم تسجيل الدفعة وسداد الفاتورة بالكامل بنجاح',
+      payment,
+      invoice: {
+        id: invoiceId,
+        status: 'paid',
+        invoice_total: invoiceTotal
+      }
+    });
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+
+    console.error('خطأ تسجيل الدفعة:', error.message);
+
+    return res.status(500).json({
+      success: false,
+      error: 'حدث خطأ أثناء تسجيل الدفعة'
+    });
+
+  } finally {
+    client.release();
+  }
+});
+
+
 app.listen(PORT, () => {
     console.log(`
     🚀 ==========================================
