@@ -3534,6 +3534,207 @@ app.delete('/api/admin/medical-articles/:id', async (req, res) => {
   }
 });
 
+// ==========================================================
+// 🧾 نظام المحاسبة - مسارات الفواتير
+// ==========================================================
+
+
+// 1) جلب الفواتير وحالة السداد
+app.get('/api/accounting/invoices', async (req, res) => {
+  try {
+    const doctorId = req.query.doctor_id
+      ? Number(req.query.doctor_id)
+      : null;
+
+    const year = req.query.year
+      ? Number(req.query.year)
+      : null;
+
+    const month = req.query.month
+      ? Number(req.query.month)
+      : null;
+
+    if (
+      (doctorId !== null && (!Number.isInteger(doctorId) || doctorId <= 0)) ||
+      (year !== null && (!Number.isInteger(year) || year < 2000 || year > 2100)) ||
+      (month !== null && (!Number.isInteger(month) || month < 1 || month > 12))
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'بيانات البحث غير صحيحة'
+      });
+    }
+
+    const result = await pool.query(`
+      SELECT
+        i.id,
+        i.doctor_id,
+        d.name AS doctor_name,
+        i.invoice_year,
+        i.invoice_month,
+        i.invoice_total,
+        i.status AS stored_status,
+        i.issued_at,
+        i.issued_by,
+        i.notes,
+
+        COALESCE(p.paid_amount, 0) AS paid_amount,
+
+        GREATEST(
+          i.invoice_total - COALESCE(p.paid_amount, 0),
+          0
+        ) AS outstanding_amount,
+
+        CASE
+          WHEN i.status = 'void' THEN 'void'
+          WHEN COALESCE(p.paid_amount, 0) >= i.invoice_total THEN 'paid'
+          ELSE 'unpaid'
+        END AS payment_status
+
+      FROM doctor_invoices i
+
+      LEFT JOIN doctors d
+        ON d.id = i.doctor_id
+
+      LEFT JOIN LATERAL (
+        SELECT
+          COALESCE(SUM(pa.allocated_amount), 0) AS paid_amount
+        FROM payment_allocations pa
+        INNER JOIN doctor_payments dp
+          ON dp.id = pa.payment_id
+        WHERE
+          pa.invoice_id = i.id
+          AND dp.status = 'confirmed'
+      ) p ON TRUE
+
+      WHERE
+        ($1::INTEGER IS NULL OR i.doctor_id = $1)
+        AND ($2::INTEGER IS NULL OR i.invoice_year = $2)
+        AND ($3::INTEGER IS NULL OR i.invoice_month = $3)
+
+      ORDER BY
+        i.invoice_year DESC,
+        i.invoice_month DESC,
+        d.name ASC
+    `, [doctorId, year, month]);
+
+    return res.json({
+      success: true,
+      invoices: result.rows
+    });
+
+  } catch (error) {
+    console.error('خطأ جلب الفواتير:', error.message);
+
+    return res.status(500).json({
+      success: false,
+      error: 'حدث خطأ أثناء جلب الفواتير'
+    });
+  }
+});
+
+
+// 2) اعتماد فاتورة شهرية وحفظ قيمتها النهائية
+app.post('/api/accounting/invoices/issue', async (req, res) => {
+  try {
+    const {
+      doctor_id,
+      invoice_year,
+      invoice_month,
+      invoice_total,
+      issued_by,
+      notes
+    } = req.body;
+
+    const doctorId = Number(doctor_id);
+    const year = Number(invoice_year);
+    const month = Number(invoice_month);
+    const amount = Number(invoice_total);
+
+    if (!Number.isInteger(doctorId) || doctorId <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'رقم الطبيب غير صحيح'
+      });
+    }
+
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      return res.status(400).json({
+        success: false,
+        error: 'السنة غير صحيحة'
+      });
+    }
+
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      return res.status(400).json({
+        success: false,
+        error: 'الشهر غير صحيح'
+      });
+    }
+
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      Math.abs(amount * 100 - Math.round(amount * 100)) > 0.000001
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'قيمة الفاتورة يجب أن تكون أكبر من صفر وبحد أقصى منزلتين عشريتين'
+      });
+    }
+
+    const result = await pool.query(`
+      INSERT INTO doctor_invoices (
+        doctor_id,
+        invoice_year,
+        invoice_month,
+        invoice_total,
+        status,
+        issued_at,
+        issued_by,
+        notes
+      )
+      VALUES ($1, $2, $3, $4, 'issued', NOW(), $5, $6)
+
+      RETURNING *
+    `, [
+      doctorId,
+      year,
+      month,
+      amount.toFixed(2),
+      issued_by || null,
+      notes || null
+    ]);
+
+    return res.status(201).json({
+      success: true,
+      message: 'تم اعتماد الفاتورة وحفظ قيمتها بنجاح',
+      invoice: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('خطأ اعتماد الفاتورة:', error.message);
+
+    if (error.code === '23505') {
+      return res.status(409).json({
+        success: false,
+        error: 'تم إصدار فاتورة لهذا الطبيب عن هذا الشهر من قبل'
+      });
+    }
+
+    if (error.code === '23503') {
+      return res.status(400).json({
+        success: false,
+        error: 'الطبيب المحدد غير موجود'
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      error: 'حدث خطأ أثناء اعتماد الفاتورة'
+    });
+  }
+});
 
 app.listen(PORT, () => {
     console.log(`
