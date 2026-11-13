@@ -3979,6 +3979,81 @@ app.post('/api/accounting/payments', async (req, res) => {
 });
 
 
+// ==========================================================
+// 💳 جلب سجل التحويلات مع بيانات الفاتورة والطبيب
+// ==========================================================
+app.get('/api/accounting/payments', async (req, res) => {
+  try {
+    const doctorId = req.query.doctor_id
+      ? Number(req.query.doctor_id)
+      : null;
+
+    if (
+      doctorId !== null &&
+      (!Number.isInteger(doctorId) || doctorId <= 0)
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'رقم الطبيب غير صحيح'
+      });
+    }
+
+    const result = await pool.query(`
+      SELECT
+        p.id AS payment_id,
+        p.doctor_id,
+        d.name AS doctor_name,
+
+        p.amount AS actual_transfer_amount,
+        p.payment_date,
+        p.reference_number,
+        p.notes AS payment_notes,
+        p.status AS payment_status,
+        p.created_at,
+        p.recorded_by,
+
+        i.id AS invoice_id,
+        i.invoice_year,
+        i.invoice_month,
+        i.invoice_total,
+
+        pa.allocated_amount
+
+      FROM doctor_payments p
+
+      INNER JOIN payment_allocations pa
+        ON pa.payment_id = p.id
+
+      INNER JOIN doctor_invoices i
+        ON i.id = pa.invoice_id
+
+      LEFT JOIN doctors d
+        ON d.id = p.doctor_id
+
+      WHERE
+        ($1::INTEGER IS NULL OR p.doctor_id = $1)
+
+      ORDER BY
+        p.payment_date DESC,
+        p.id DESC
+    `, [doctorId]);
+
+    return res.json({
+      success: true,
+      payments: result.rows
+    });
+
+  } catch (error) {
+    console.error('خطأ جلب سجل التحويلات:', error.message);
+
+    return res.status(500).json({
+      success: false,
+      error: 'حدث خطأ أثناء جلب سجل التحويلات'
+    });
+  }
+});
+
+
 app.listen(PORT, () => {
     console.log(`
     🚀 ==========================================
