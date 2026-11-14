@@ -1562,16 +1562,30 @@ app.get(/^\/doctors\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?\/?$/, async (req, res) 
             `<title>${escapeHtml(pageTitle)}</title>`
         );
 
-        // إزالة الوصف والـ Canonical القديمين
-        html = html.replace(
-            /<meta\s+name=["']description["'][^>]*>/gi,
-            ''
-        );
+       
+// إزالة بيانات SEO القديمة
+html = html.replace(
+    /<meta\s+name=["']description["'][^>]*>/gi,
+    ''
+);
 
-        html = html.replace(
-            /<link\s+rel=["']canonical["'][^>]*>/gi,
-            ''
-        );
+html = html.replace(
+    /<link\s+rel=["']canonical["'][^>]*>/gi,
+    ''
+);
+
+// إزالة وسوم Open Graph القديمة
+html = html.replace(
+    /<meta\s+property=["']og:(title|description|url)["'][^>]*>/gi,
+    ''
+);
+
+// إزالة وسوم Twitter القديمة المقابلة
+html = html.replace(
+    /<meta\s+property=["']twitter:(title|description|url)["'][^>]*>/gi,
+    ''
+);
+
 
         // إضافة بيانات SEO الجديدة
         const seoTags = `
