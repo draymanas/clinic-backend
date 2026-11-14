@@ -1313,7 +1313,8 @@ function injectDoctorMetaTags(html, doctor, reqId) {
 
   let updatedHtml = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${ogTitle} | منصة دكتور</title>`);
 
-  const metaTags = `
+const metaTags = `
+    <link rel="canonical" href="${canonicalUrl}" />
     <meta name="description" content="${ogDescription}" />
     <meta property="og:title" content="${ogTitle}" />
     <meta property="og:description" content="${ogDescription}" />
@@ -1332,7 +1333,10 @@ function injectDoctorMetaTags(html, doctor, reqId) {
   updatedHtml = updatedHtml.replace(/<meta\s+property=["']og:[^>]+>/gi, '');
   updatedHtml = updatedHtml.replace(/<meta\s+name=["']twitter:[^>]+>/gi, '');
   updatedHtml = updatedHtml.replace(/<meta\s+name=["']description["'][^>]+>/gi, '');
-
+updatedHtml = updatedHtml.replace(
+  /<link\s+rel=["']canonical["'][^>]*>/gi,
+  ''
+);
   return updatedHtml.replace('</head>', `${metaTags}\n  </head>`);
 }
 
@@ -1483,6 +1487,114 @@ app.get(['/d/:slugOrId', '/ayman', '/d/ayman'], async (req, res, next) => {
     res.redirect(301, 'https://www.doctoreg.online/');
   }
 });
+
+
+// ======================================================
+// SEO HTML لصفحات دليل الأطباء
+// /doctors/:specialty/:city?/:area?
+// ======================================================
+
+app.get(/^\/doctors\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?\/?$/, async (req, res) => {
+    try {
+        const specialtySlug = decodeURIComponent(req.params[0] || '');
+        const citySlug = decodeURIComponent(req.params[1] || '');
+        const areaSlug = decodeURIComponent(req.params[2] || '');
+
+        // جلب الأطباء النشطين من Supabase
+        const doctors = await getActiveDoctorsForSitemap();
+
+        // مطابقة التخصص والمحافظة والمنطقة مع الرابط
+        const matchingDoctors = doctors.filter(doctor => {
+            const specialtyMatch =
+                slugifyArabic(doctor.specialty) === specialtySlug;
+
+            const cityMatch = !citySlug ||
+                slugifyArabic(doctor.city) === citySlug;
+
+            const areaMatch = !areaSlug ||
+                slugifyArabic(doctor.area) === areaSlug;
+
+            return specialtyMatch && cityMatch && areaMatch;
+        });
+
+        if (matchingDoctors.length === 0) {
+            return res.status(404).send('Page not found');
+        }
+
+        const specialty = matchingDoctors[0].specialty;
+        const city = citySlug ? matchingDoctors[0].city : '';
+        const area = areaSlug ? matchingDoctors[0].area : '';
+
+        let pageTitle;
+        let pageDesc;
+
+        if (area) {
+            pageTitle = `أفضل أطباء ${specialty} في ${area}، ${city} | منصة دكتور`;
+            pageDesc = `تصفح أطباء ${specialty} في ${area} بمحافظة ${city}. تعرف على بيانات العيادات وأسعار الكشف والمواعيد المتاحة واحجز موعدك عبر منصة دكتور.`;
+        } else if (city) {
+            pageTitle = `أفضل دكتور ${specialty} في ${city} | منصة دكتور`;
+            pageDesc = `ابحث واحجز مع أطباء ${specialty} في محافظة ${city}. تعرف على العيادات وبيانات الأطباء ومواعيد الحجز عبر منصة دكتور.`;
+        } else {
+            pageTitle = `أفضل أطباء ${specialty} في مصر | منصة دكتور`;
+            pageDesc = `دليل أطباء ${specialty} في مصر. استعرض بيانات الأطباء والعيادات ومواعيد الكشف واحجز موعدك عبر منصة دكتور.`;
+        }
+
+        const canonicalUrl =
+            `https://www.doctoreg.online${req.path}`;
+
+        // جلب HTML الأصلي من واجهة Vercel
+        const frontendResponse = await axios.get(
+            'https://www.doctoreg.online/',
+            { timeout: 15000 }
+        );
+
+        let html = frontendResponse.data;
+
+        const escapeHtml = value => String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        // تحديث عنوان الصفحة
+        html = html.replace(
+            /<title>[\s\S]*?<\/title>/i,
+            `<title>${escapeHtml(pageTitle)}</title>`
+        );
+
+        // إزالة الوصف والـ Canonical القديمين
+        html = html.replace(
+            /<meta\s+name=["']description["'][^>]*>/gi,
+            ''
+        );
+
+        html = html.replace(
+            /<link\s+rel=["']canonical["'][^>]*>/gi,
+            ''
+        );
+
+        // إضافة بيانات SEO الجديدة
+        const seoTags = `
+            <meta name="description" content="${escapeHtml(pageDesc)}" />
+            <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
+            <meta property="og:title" content="${escapeHtml(pageTitle)}" />
+            <meta property="og:description" content="${escapeHtml(pageDesc)}" />
+            <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
+        `;
+
+        html = html.replace('</head>', `${seoTags}\n</head>`);
+
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.set('Cache-Control', 'public, max-age=300');
+
+        return res.status(200).send(html);
+
+    } catch (error) {
+        console.error('Doctors SEO route error:', error);
+        return res.status(500).send('SEO page error');
+    }
+});
+
 
 // =========================================================================
 // 🌟 2. مسار روابط الأطباء الأساسية لدعم زواحف فيسبوك وواتساب
