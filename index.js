@@ -1245,20 +1245,21 @@ app.get('/test-version', (req, res) => {
 // --- مسار جديد للحجز المباشر بواسطة ID الدكتور ---
 // 1. هنا بنستقبل الرقم من المتصفح وبنسميه id (اسم مؤقت)
 app.get('/doctor-direct/:id', async (req, res) => {
-    // 1. تحويل الـ id من نص إلى رقم صحيح
     const doctorId = parseInt(req.params.id);
 
-    console.log("🔍 جاري البحث عن الدكتور رقم:", doctorId);
+    // التحقق من أن المدخل رقم صحيح قبل استهلاك قاعدة البيانات
+    if (isNaN(doctorId)) {
+        return res.status(400).json({ error: "رقم الدكتور غير صحيح" });
+    }
 
     try {
         const { data, error } = await supabase
             .from('doctors')
             .select('*')
-            .eq('id', doctorId) // نستخدم المتغير الرقمي هنا
+            .eq('id', doctorId)
             .single();
 
         if (error || !data) {
-            console.error("❌ خطأ من سوبابيز:", error?.message);
             return res.status(404).json({ error: "الدكتور غير موجود" });
         }
 
