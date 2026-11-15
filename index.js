@@ -1563,7 +1563,6 @@ app.get(/^\/doctors\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?\/?$/, async (req, res) 
             `<title>${escapeHtml(pageTitle)}</title>`
         );
 
-       
 // إزالة بيانات SEO القديمة
 html = html.replace(
     /<meta\s+name=["']description["'][^>]*>/gi,
@@ -1592,7 +1591,6 @@ html = html.replace(
     /<title>[\s\S]*?<\/title>/i,
     `<title>${escapeHtml(pageTitle)}</title>`
 );
-
         // إضافة بيانات SEO الجديدة
 const seoTags = `
     <meta name="description" content="${escapeHtml(pageDesc)}" />
