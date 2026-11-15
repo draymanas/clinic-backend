@@ -1534,8 +1534,8 @@ app.get(/^\/doctors\/([^/]+)(?:\/([^/]+))?(?:\/([^/]+))?\/?$/, async (req, res) 
             pageDesc = `تصفح أطباء ${specialty} في ${area} بمحافظة ${city}. تعرف على بيانات العيادات وأسعار الكشف والمواعيد المتاحة واحجز موعدك عبر منصة دكتور.`;
         } else if (city) {
             pageTitle = `أفضل دكتور ${specialty} في ${city} | منصة دكتور`;
-            pageDesc = `ابحث واحجز مع أطباء ${specialty} في محافظة ${city}. تعرف على العيادات وبيانات الأطباء ومواعيد الحجز عبر منصة دكتور.`;
-        } else {
+           pageDesc = `ابحث عن أطباء ${specialty} في ${city}. اطلع على بيانات الأطباء وعناوين العيادات وأسعار الكشف الرسمية ومواعيد مؤكدة للحجز عبر منصة دكتور.`;
+ } else {
             pageTitle = `أفضل أطباء ${specialty} في مصر | منصة دكتور`;
             pageDesc = `دليل أطباء ${specialty} في مصر. استعرض بيانات الأطباء والعيادات ومواعيد الكشف واحجز موعدك عبر منصة دكتور.`;
         }
@@ -1581,21 +1581,30 @@ html = html.replace(
     ''
 );
 
-// إزالة وسوم Twitter القديمة المقابلة
+// إزالة جميع وسوم Twitter القديمة التي سنعيد إنشاءها
 html = html.replace(
-    /<meta\s+property=["']twitter:(title|description|url)["'][^>]*>/gi,
+    /<meta\s+(?:name|property)=["']twitter:(card|url|title|description|image)["'][^>]*>/gi,
     ''
 );
 
 
         // إضافة بيانات SEO الجديدة
-        const seoTags = `
-            <meta name="description" content="${escapeHtml(pageDesc)}" />
-            <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
-            <meta property="og:title" content="${escapeHtml(pageTitle)}" />
-            <meta property="og:description" content="${escapeHtml(pageDesc)}" />
-            <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
-        `;
+const seoTags = `
+    <meta name="description" content="${escapeHtml(pageDesc)}" />
+    <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="${escapeHtml(pageTitle)}" />
+    <meta property="og:description" content="${escapeHtml(pageDesc)}" />
+    <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="${escapeHtml(canonicalUrl)}" />
+    <meta name="twitter:title" content="${escapeHtml(pageTitle)}" />
+    <meta name="twitter:description" content="${escapeHtml(pageDesc)}" />
+    <meta name="twitter:image" content="https://www.doctoreg.online/logo512.png" />
+`;
 
         html = html.replace('</head>', `${seoTags}\n</head>`);
 
