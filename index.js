@@ -1587,6 +1587,11 @@ html = html.replace(
     ''
 );
 
+// تحديث عنوان الصفحة الأساسي
+html = html.replace(
+    /<title>[\s\S]*?<\/title>/i,
+    `<title>${escapeHtml(pageTitle)}</title>`
+);
 
         // إضافة بيانات SEO الجديدة
 const seoTags = `
