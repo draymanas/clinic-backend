@@ -1359,10 +1359,11 @@ updatedHtml = updatedHtml.replace(
   );
 
   // إزالة وسوم Twitter القديمة
-  updatedHtml = updatedHtml.replace(
-    /<meta\b(?=[^>]*\bname=["']twitter:)[^>]*>\s*/gi,
-    ''
-  );
+// إزالة جميع وسوم Twitter القديمة سواء كانت name أو property
+updatedHtml = updatedHtml.replace(
+  /<meta\b(?=[^>]*\b(?:name|property)=["']twitter:)[^>]*>\s*/gi,
+  ''
+);
 
   // إزالة وصف الصفحة القديم
   updatedHtml = updatedHtml.replace(
