@@ -3208,6 +3208,7 @@ app.get('/api/migrate-doctor-images-to-cloudinary', async (req, res) => {
 // 📰 كل يوم معلومة - جلب المقالات الطبية المنشورة
 // ==========================================================
 
+// المقالات العامة - كل يوم معلومة
 app.get('/api/medical-articles', async (req, res) => {
     try {
         const result = await pool.query(`
@@ -3222,6 +3223,7 @@ app.get('/api/medical-articles', async (req, res) => {
                 published_at
             FROM medical_articles
             WHERE status = 'published'
+            
             ORDER BY published_at DESC NULLS LAST, id DESC
         `);
 
@@ -3236,6 +3238,43 @@ app.get('/api/medical-articles', async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'فشل تحميل المقالات الطبية'
+        });
+    }
+});
+
+// ==========================================================
+// 🧠 بروفايل د. أيمن - جلب مقالات Neuro
+// ==========================================================
+
+app.get('/api/doctor-articles', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT
+                id,
+                title,
+                slug,
+                summary,
+                specialty,
+                image_url,
+                author_name,
+                published_at
+            FROM medical_articles
+            WHERE status = 'published'
+              AND article_type = 'neuro'
+            ORDER BY published_at DESC NULLS LAST, id DESC
+        `);
+
+        res.json({
+            success: true,
+            articles: result.rows
+        });
+
+    } catch (error) {
+        console.error('❌ خطأ جلب مقالات الطبيب:', error.message);
+
+        res.status(500).json({
+            success: false,
+            error: 'فشل تحميل مقالات الطبيب'
         });
     }
 });
@@ -3410,12 +3449,15 @@ function parseRelatedSpecialties(value) {
      }
 
      try {
-       const {
-         title, slug, summary, content,
-         specialty, author_name, reviewer_name,
-         sources, seo_title, seo_description,
-status, related_specialties
-       } = req.body;
+      const {
+    title, slug, summary, content,
+    specialty, author_name, reviewer_name,
+    sources, seo_title, seo_description,
+    status, related_specialties, article_type
+} = req.body;
+const articleType = article_type === 'neuro'
+    ? 'neuro'
+    : 'general';
 
        if (!title?.trim() || !slug?.trim() || !content?.trim()) {
          return res.status(400).json({
@@ -3475,12 +3517,12 @@ const result = await pool.query(
     title, slug, summary, content, specialty,
     image_url, author_name, reviewer_name,
     sources, seo_title, seo_description,
-    status, published_at, related_specialties
+    status, published_at, related_specialties, article_type
   )
   VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9, $10, $11,
-    $12, $13, $14::text[]
+    $12, $13, $14::text[], $15
   )
   RETURNING id, title, slug, status, image_url,
             related_specialties`,
@@ -3498,7 +3540,8 @@ const result = await pool.query(
     seo_description || null,
     articleStatus,
     articleStatus === 'published' ? new Date() : null,
-    relatedSpecialties
+    relatedSpecialties,
+    articleType
   ]
 );
 
@@ -3538,7 +3581,7 @@ const result = await pool.query(`
     related_specialties,
     image_url, author_name, reviewer_name,
     sources, seo_title, seo_description,
-    status, published_at, created_at, updated_at
+    status, article_type, published_at, created_at, updated_at
   FROM medical_articles
   ORDER BY created_at DESC, id DESC
 `);
@@ -3587,7 +3630,7 @@ app.put('/api/admin/medical-articles/:id', (req, res) => {
         title, slug, summary, content, specialty,
         author_name, reviewer_name, sources,
         seo_title, seo_description, status,
-related_specialties
+        related_specialties, article_type
       } = req.body || {};
 
       if (!title?.trim() || !slug?.trim() || !content?.trim()) {
@@ -3633,7 +3676,9 @@ const current = await pool.query(
       }
 
       const articleStatus = status === 'published' ? 'published' : 'draft';
-
+      const articleType = article_type === 'neuro'
+    ? 'neuro'
+    : 'general';
       let imageUrl = current.rows[0].image_url;
 
       if (req.file) {
@@ -3664,10 +3709,10 @@ const result = await pool.query(
       ELSE published_at
     END,
     related_specialties = $14::text[],
-    updated_at = NOW()
+    article_type = $15
   WHERE id = $13
-  RETURNING id, title, slug, status, image_url,
-            related_specialties`,
+RETURNING id, title, slug, status, image_url,
+          related_specialties, article_type`,
   [
     title.trim(),
     cleanSlug,
@@ -3682,7 +3727,8 @@ const result = await pool.query(
     seo_description || null,
     articleStatus,
     articleId,
-    relatedSpecialties
+    relatedSpecialties,
+    articleType
   ]
 );
 
