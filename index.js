@@ -1296,7 +1296,7 @@ function getDoctorSeoPath(doctor, fallbackId) {
         : `/dr/${docId}`;
 }
 
-// دالة حقن وسوم الـ Open Graph لكروت Facebook و WhatsApp الرسمية بدون أرقام
+// 🌟 حقن بيانات SEO و Open Graph و Twitter لكل طبيب في HTML الأولي
 function injectDoctorMetaTags(html, doctor, reqId) {
   const doctorName = doctor.name || 'طبيب معتمد';
   const specialty = doctor.specialty || 'استشاري متخصص';
@@ -1304,42 +1304,102 @@ function injectDoctorMetaTags(html, doctor, reqId) {
   const city = doctor.city || '';
   const area = doctor.area || '';
   const locationText = [area, city].filter(Boolean).join(' – ') || 'مصر';
-  const doctorFee = doctor.fee ? `سعر الكشف: ${doctor.fee} ج.م` : 'حجز موعد مسبق';
-  const doctorPhoto = doctor.image_url || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=1200&h=630&auto=format&fit=crop&q=80';
-  const canonicalUrl = `https://www.doctoreg.online${getDoctorSeoPath(doctor, reqId)}`;
 
-  const ogTitle = `دكتور. ${doctorName} | ${titlePrefix}${specialty}`;
-  // وصف احترافي بدون أي أرقام هواتف لضمان فتح صفحة الطبيب الشخصية
-  const ogDescription = `📍 العيادة: ${locationText} | 📅 احجز موعدك الآن مباشرة عبر صفحة الطبيب الرسمية بدون وسيط أو رسوم إضافية.`;
+  const fallbackImage =
+    'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=1200&h=630&auto=format&fit=crop&q=80';
 
-  let updatedHtml = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${ogTitle} | منصة دكتور</title>`);
+  let doctorPhoto = doctor.image_url || fallbackImage;
 
-const metaTags = `
-    <link rel="canonical" href="${canonicalUrl}" />
-    <meta name="description" content="${ogDescription}" />
-    <meta property="og:title" content="${ogTitle}" />
-    <meta property="og:description" content="${ogDescription}" />
-    <meta property="og:image" content="${doctorPhoto}" />
+  // ضمان أن رابط الصورة مطلق
+  try {
+    doctorPhoto = new URL(doctorPhoto, 'https://www.doctoreg.online').href;
+  } catch (e) {
+    doctorPhoto = fallbackImage;
+  }
+
+  const seoPath = getDoctorSeoPath(doctor, reqId);
+  const canonicalUrl = new URL(
+    seoPath,
+    'https://www.doctoreg.online'
+  ).href;
+
+  const ogTitle = `دكتور ${doctorName} | ${titlePrefix}${specialty}`;
+  const ogDescription =
+    `📍 العيادة: ${locationText} | 📅 احجز موعدك الآن مباشرة عبر صفحة الطبيب الرسمية وتعرف على المواعيد المتاحة.`;
+
+  // حماية محتوى الوسوم من كسر HTML
+  const escapeHtml = (value) =>
+    String(value).replace(/[&<>"']/g, (char) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    }[char]));
+
+  const safeTitle = escapeHtml(ogTitle);
+  const safeDescription = escapeHtml(ogDescription);
+  const safeImage = escapeHtml(doctorPhoto);
+  const safeUrl = escapeHtml(canonicalUrl);
+
+  let updatedHtml = html;
+
+  // تحديث عنوان الصفحة
+  updatedHtml = updatedHtml.replace(
+    /<title>[\s\S]*?<\/title>/i,
+    `<title>${safeTitle} | منصة دكتور</title>`
+  );
+
+  // إزالة الوسوم القديمة حتى لا تتكرر
+  updatedHtml = updatedHtml.replace(
+    /<meta\s+[^>]*property=["']og:[^>]*>/gi,
+    ''
+  );
+
+  updatedHtml = updatedHtml.replace(
+    /<meta\s+[^>]*name=["']twitter:[^>]*>/gi,
+    ''
+  );
+
+  updatedHtml = updatedHtml.replace(
+    /<meta\s+[^>]*name=["']description["'][^>]*>/gi,
+    ''
+  );
+
+  updatedHtml = updatedHtml.replace(
+    /<link\s+[^>]*rel=["']canonical["'][^>]*>/gi,
+    ''
+  );
+
+  // بيانات الطبيب الخاصة بالمشاركة ومحركات البحث
+  const metaTags = `
+    <link rel="canonical" href="${safeUrl}" />
+    <meta name="description" content="${safeDescription}" />
+
+    <meta property="og:title" content="${safeTitle}" />
+    <meta property="og:description" content="${safeDescription}" />
+    <meta property="og:image" content="${safeImage}" />
+    <meta property="og:image:secure_url" content="${safeImage}" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:url" content="${canonicalUrl}" />
+    <meta property="og:image:alt" content="${safeTitle}" />
+    <meta property="og:url" content="${safeUrl}" />
     <meta property="og:type" content="profile" />
     <meta property="og:site_name" content="منصة دكتور" />
+
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="${ogTitle}" />
-    <meta name="twitter:description" content="${ogDescription}" />
-    <meta name="twitter:image" content="${doctorPhoto}" />
+    <meta name="twitter:title" content="${safeTitle}" />
+    <meta name="twitter:description" content="${safeDescription}" />
+    <meta name="twitter:image" content="${safeImage}" />
   `;
 
-  updatedHtml = updatedHtml.replace(/<meta\s+property=["']og:[^>]+>/gi, '');
-  updatedHtml = updatedHtml.replace(/<meta\s+name=["']twitter:[^>]+>/gi, '');
-  updatedHtml = updatedHtml.replace(/<meta\s+name=["']description["'][^>]+>/gi, '');
-updatedHtml = updatedHtml.replace(
-  /<link\s+rel=["']canonical["'][^>]*>/gi,
-  ''
-);
-  return updatedHtml.replace('</head>', `${metaTags}\n  </head>`);
+  // إدراج البيانات داخل head قبل إغلاقه
+  return updatedHtml.replace(
+    /<\/head>/i,
+    `${metaTags}\n</head>`
+  );
 }
+
 
 // 🌟 1. مسار الرابط فائق الاختصار للتعليقات
 // // =========================================================================
