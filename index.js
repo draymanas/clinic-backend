@@ -1345,31 +1345,37 @@ function injectDoctorMetaTags(html, doctor, reqId) {
   let updatedHtml = html;
 
   // تحديث عنوان الصفحة
-  updatedHtml = updatedHtml.replace(
-    /<title>[\s\S]*?<\/title>/i,
-    `<title>${safeTitle} | منصة دكتور</title>`
-  );
+updatedHtml = updatedHtml.replace(
+  /<title\b[^>]*>[\s\S]*?<\/title>/i,
+  `<title>${safeTitle} | منصة دكتور</title>`
+);
 
   // إزالة الوسوم القديمة حتى لا تتكرر
+
+  // إزالة وسوم Open Graph القديمة
   updatedHtml = updatedHtml.replace(
-    /<meta\s+[^>]*property=["']og:[^>]*>/gi,
+    /<meta\b(?=[^>]*\bproperty=["']og:)[^>]*>\s*/gi,
     ''
   );
 
+  // إزالة وسوم Twitter القديمة
   updatedHtml = updatedHtml.replace(
-    /<meta\s+[^>]*name=["']twitter:[^>]*>/gi,
+    /<meta\b(?=[^>]*\bname=["']twitter:)[^>]*>\s*/gi,
     ''
   );
 
+  // إزالة وصف الصفحة القديم
   updatedHtml = updatedHtml.replace(
-    /<meta\s+[^>]*name=["']description["'][^>]*>/gi,
+    /<meta\b(?=[^>]*\bname=["']description["'])[^>]*>\s*/gi,
     ''
   );
 
+  // إزالة canonical القديم
   updatedHtml = updatedHtml.replace(
-    /<link\s+[^>]*rel=["']canonical["'][^>]*>/gi,
+    /<link\b(?=[^>]*\brel=["']canonical["'])[^>]*>\s*/gi,
     ''
   );
+
 
   // بيانات الطبيب الخاصة بالمشاركة ومحركات البحث
   const metaTags = `
@@ -1389,15 +1395,16 @@ function injectDoctorMetaTags(html, doctor, reqId) {
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${safeTitle}" />
+    <meta name="twitter:url" content="${safeUrl}" />
     <meta name="twitter:description" content="${safeDescription}" />
     <meta name="twitter:image" content="${safeImage}" />
   `;
 
   // إدراج البيانات داخل head قبل إغلاقه
-  return updatedHtml.replace(
-    /<\/head>/i,
-    `${metaTags}\n</head>`
-  );
+return updatedHtml.replace(
+  /<\/head>/i,
+  `${metaTags}\n</head>`
+);
 }
 
 
