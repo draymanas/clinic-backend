@@ -3288,10 +3288,12 @@ app.get('/api/medical-articles/:slug', async (req, res) => {
         const { slug } = req.params;
 
       
+
 const result = await pool.query(
     `SELECT
         id, title, slug, summary, content,
         specialty, related_specialties,
+        article_type,
         image_url, author_name,
         reviewer_name, sources, seo_title,
         seo_description, published_at, updated_at
@@ -3300,6 +3302,7 @@ const result = await pool.query(
      LIMIT 1`,
     [slug]
 );
+
 
 
         if (result.rows.length === 0) {
