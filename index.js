@@ -1015,6 +1015,57 @@ app.post('/api/ayman-profile-booking', async (req, res) => {
 });
 
 
+// استقبال طلب الحجز من صفحات السيرفيس وإرسال رسالة Telegram
+app.post('/api/service-booking', async (req, res) => {
+    try {
+        const { name, phone, serviceTitle } = req.body;
+
+        if (!name?.trim() || !phone?.trim() || !serviceTitle?.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'الاسم ورقم الهاتف واسم الخدمة مطلوبون'
+            });
+        }
+
+        const token = process.env.TELEGRAM_BOT_TOKEN;
+        const chatId = process.env.TELEGRAM_CHAT_ID;
+
+        if (!token || !chatId) {
+            return res.status(500).json({
+                success: false,
+                message: 'إعدادات Telegram غير مكتملة'
+            });
+        }
+
+        const message =
+            `طلب حجز موعد جديد من صفحة مقال (${serviceTitle.trim()}):\n` +
+            `الاسم: ${name.trim()}\n` +
+            `الموبايل/واتساب: ${phone.trim()}`;
+
+        await axios.post(
+            `https://api.telegram.org/bot${token}/sendMessage`,
+            {
+                chat_id: chatId,
+                text: message
+            }
+        );
+
+        return res.json({ success: true });
+
+    } catch (error) {
+        console.error(
+            'فشل إرسال طلب حجز السيرفيس إلى Telegram:',
+            error.response?.data || error.message
+        );
+
+        return res.status(500).json({
+            success: false,
+            message: 'تعذر إرسال الطلب'
+        });
+    }
+});
+
+
 // --- تحديث بيانات الطبيب مع الحفاظ على البيانات القديمة ---
 app.put('/api/update-doctor/:id', upload.single('image'), async (req, res) => {
     const { id } = req.params;
