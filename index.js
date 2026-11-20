@@ -160,7 +160,7 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 // إعدادات الاتصال بـ PostgreSQL (تمت إزالة التكرار)
 const pool = new Pool({
-  connectionString: "postgresql://postgres.jvaiadgohuvgzgmwqnom:Aioota2026as@aws-1-eu-central-1.pooler.supabase.com:5432/postgres",
+  connectionString: process.env.DATABASE_URL,
   ssl: {
     rejectUnauthorized: false
   }
