@@ -963,6 +963,58 @@ app.post('/register-doctor', upload.single('image'), async (req, res) => {
     }
 });
 
+
+// استقبال طلب الحجز من بروفايل د/ أيمن وإرسال رسالة Telegram فقط
+app.post('/api/ayman-profile-booking', async (req, res) => {
+    try {
+        const { name, phone } = req.body;
+
+        if (!name?.trim() || !phone?.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'الاسم ورقم الهاتف مطلوبان'
+            });
+        }
+
+        const token = process.env.TELEGRAM_BOT_TOKEN;
+        const chatId = process.env.TELEGRAM_CHAT_ID;
+
+        if (!token || !chatId) {
+            return res.status(500).json({
+                success: false,
+                message: 'إعدادات Telegram غير مكتملة'
+            });
+        }
+
+        const message =
+            `طلب حجز أونلاين جديد:\n` +
+            `الاسم: ${name.trim()}\n` +
+            `رقم الواتساب: ${phone.trim()}`;
+
+        await axios.post(
+            `https://api.telegram.org/bot${token}/sendMessage`,
+            {
+                chat_id: chatId,
+                text: message
+            }
+        );
+
+        return res.json({ success: true });
+
+    } catch (error) {
+        console.error(
+            'فشل إرسال طلب حجز بروفايل أيمن إلى Telegram:',
+            error.response?.data || error.message
+        );
+
+        return res.status(500).json({
+            success: false,
+            message: 'تعذر إرسال الطلب'
+        });
+    }
+});
+
+
 // --- تحديث بيانات الطبيب مع الحفاظ على البيانات القديمة ---
 app.put('/api/update-doctor/:id', upload.single('image'), async (req, res) => {
     const { id } = req.params;
