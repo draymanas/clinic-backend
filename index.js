@@ -802,10 +802,14 @@ app.get('/doctors', async (req, res) => {
 });
 
 const sendTelegramAlert = async (doctorData) => {
-    const token = '8639669118:AAGOpN9rtWDl_J3kmhoBK3PddqI14jPqEgw';
-    const chatId = 6635887452; 
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const chatId = process.env.TELEGRAM_CHAT_ID;
 
-    // هنا بنضمن إننا نقرأ الأسماء اللي جاية من الفورم فعلياً (mobile و personal_mobile)
+    if (!token || !chatId) {
+        console.warn('⚠️ إعدادات Telegram غير مكتملة');
+        return;
+    }
+
     const message = `
 🔔 **تنبيه: طبيب جديد سجل الآن!** 🔔
 
@@ -818,14 +822,22 @@ const sendTelegramAlert = async (doctorData) => {
     `;
 
     try {
-        await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
-            chat_id: chatId,
-            text: message,
-            parse_mode: 'Markdown'
-        });
-        console.log("✅ تم إرسال تنبيه تليجرام");
+        await axios.post(
+            `https://api.telegram.org/bot${token}/sendMessage`,
+            {
+                chat_id: chatId,
+                text: message,
+                parse_mode: 'Markdown'
+            }
+        );
+
+        console.log('✅ تم إرسال تنبيه تسجيل الطبيب بنجاح');
+
     } catch (error) {
-        console.error("❌ خطأ تليجرام:", error.response?.data || error.message);
+        console.error(
+            '❌ فشل إرسال تنبيه Telegram:',
+            error.response?.data || error.message
+        );
     }
 };
 
