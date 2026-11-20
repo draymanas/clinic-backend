@@ -1,5 +1,6 @@
 require('dotenv').config(); // ده المحرك اللي بيسحب البيانات من ملف الـ .env
 const express = require('express');
+const crypto = require('crypto');
 const cors = require('cors'); // تأكد من وجود هذا السطر
 const app = express();
 const admin = require('firebase-admin');
@@ -165,6 +166,81 @@ const pool = new Pool({
     rejectUnauthorized: false
   }
 });
+
+
+// ==================================================
+// 🔐 حماية دخول الأدمن
+// ==================================================
+
+const adminSessions = new Map();
+
+function requireAdmin(req, res, next) {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : '';
+
+  const session = adminSessions.get(token);
+
+  if (!session || session.expiresAt < Date.now()) {
+    if (token) adminSessions.delete(token);
+
+    return res.status(401).json({
+      success: false,
+      message: 'غير مصرح بالدخول'
+    });
+  }
+
+  next();
+}
+
+// تسجيل دخول الأدمن
+app.post('/api/admin/login', (req, res) => {
+  const { password } = req.body;
+
+  const savedPassword = process.env.ADMIN_PASSWORD;
+
+  if (!savedPassword || typeof password !== 'string') {
+    return res.status(401).json({
+      success: false,
+      message: 'بيانات الدخول غير صحيحة'
+    });
+  }
+
+  const supplied = Buffer.from(password);
+  const expected = Buffer.from(savedPassword);
+
+  const passwordIsValid =
+    supplied.length === expected.length &&
+    crypto.timingSafeEqual(supplied, expected);
+
+  if (!passwordIsValid) {
+    return res.status(401).json({
+      success: false,
+      message: 'بيانات الدخول غير صحيحة'
+    });
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+
+  adminSessions.set(token, {
+    expiresAt: Date.now() + 8 * 60 * 60 * 1000
+  });
+
+  return res.json({
+    success: true,
+    token
+  });
+});
+
+// تسجيل خروج الأدمن
+app.post('/api/admin/logout', requireAdmin, (req, res) => {
+  const token = req.headers.authorization.slice(7);
+  adminSessions.delete(token);
+
+  res.json({ success: true });
+});
+
 // ==========================================
 // 🚀 كود السيرفر المصلح لخدمة الإشعارات (server.js)
 // ==========================================
